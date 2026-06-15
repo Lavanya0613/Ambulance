@@ -1,0 +1,363 @@
+openapi: 3.0.3
+info:
+  title: Ambulance Integration API
+  description: API for Patients and Dispatchers to request, cancel and track ambulances. Designed for NestJS REST services using JWT authentication.
+  version: 1.0.0
+servers:
+  - url: https://api.example.com/v1
+    description: Production server
+  - url: http://localhost:3000/v1
+    description: Local development
+tags:
+  - name: Patient
+    description: APIs used by patients (request, cancel, track)
+  - name: Dispatcher
+    description: APIs used by dispatchers (view active requests & tracking)
+paths:
+  /patient/requests:
+    post:
+      tags:
+        - Patient
+      summary: Request Ambulance
+      operationId: PatientRequestsController.requestAmbulance
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RequestAmbulance'
+      responses:
+        '201':
+          description: Ambulance request created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RequestAmbulanceResponse'
+        '400':
+          description: Validation error
+  /patient/requests/{requestId}/cancel:
+    post:
+      tags:
+        - Patient
+      summary: Cancel Ambulance
+      operationId: PatientRequestsController.cancelAmbulance
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: requestId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CancelAmbulanceRequest'
+      responses:
+        '200':
+          description: Cancellation accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CancelAmbulanceResponse'
+        '404':
+          description: Request not found
+  /patient/requests/{requestId}/track:
+    get:
+      tags:
+        - Patient
+      summary: Track Ambulance
+      operationId: PatientRequestsController.trackAmbulance
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: requestId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Current tracking snapshot
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrackingSnapshotResponse'
+        '404':
+          description: Request not found
+  /dispatcher/requests:
+    get:
+      tags:
+        - Dispatcher
+      summary: View Active Requests
+      operationId: DispatcherController.listActiveRequests
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [PENDING, ASSIGNED, EN_ROUTE, ARRIVED, IN_PROGRESS]
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 25
+      responses:
+        '200':
+          description: List of active requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActiveRequestsListResponse'
+  /dispatcher/requests/{requestId}/tracking:
+    get:
+      tags:
+        - Dispatcher
+      summary: View Tracking
+      operationId: DispatcherController.getRequestTracking
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: requestId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: since
+          in: query
+          description: ISO-8601 timestamp to fetch positions since
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: Tracking history for the request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrackingHistoryResponse'
+        '404':
+          description: Request not found
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    Location:
+      type: object
+      properties:
+        lat:
+          type: number
+          format: double
+        lng:
+          type: number
+        addressLine:
+          type: string
+      required: [lat, lng]
+    PatientInfo:
+      type: object
+      properties:
+        name:
+          type: string
+        phoneE164:
+          type: string
+        age:
+          type: integer
+        notes:
+          type: string
+      required: [name, phoneE164]
+    RequestAmbulance:
+      type: object
+      properties:
+        idempotencyKey:
+          type: string
+          description: Client-generated idempotency key
+        pickup:
+          $ref: '#/components/schemas/Location'
+        drop:
+          $ref: '#/components/schemas/Location'
+        priority:
+          type: string
+          enum: [normal, high, critical]
+          default: normal
+        patient:
+          $ref: '#/components/schemas/PatientInfo'
+        notes:
+          type: string
+      required: [pickup, drop, patient, idempotencyKey]
+    RequestAmbulanceResponse:
+      type: object
+      properties:
+        requestId:
+          type: string
+          format: uuid
+        requestNumber:
+          type: string
+        status:
+          $ref: '#/components/schemas/RequestStatus'
+        createdAt:
+          type: string
+          format: date-time
+        assignedVendor:
+          type: object
+          properties:
+            vendorId:
+              type: string
+            vendorBookingRef:
+              type: string
+        message:
+          type: string
+      required: [requestId, requestNumber, status, createdAt]
+    CancelAmbulanceRequest:
+      type: object
+      properties:
+        reasonCode:
+          type: string
+        reasonText:
+          type: string
+      required: [reasonCode]
+    CancelAmbulanceResponse:
+      type: object
+      properties:
+        requestId:
+          type: string
+          format: uuid
+        cancelledAt:
+          type: string
+          format: date-time
+        status:
+          $ref: '#/components/schemas/RequestStatus'
+        message:
+          type: string
+      required: [requestId, cancelledAt, status]
+    DriverInfo:
+      type: object
+      properties:
+        vendorDriverRef:
+          type: string
+        name:
+          type: string
+        phoneE164:
+          type: string
+        vehicleNumber:
+          type: string
+        ambulanceType:
+          type: string
+      required: [vendorDriverRef, name]
+    Position:
+      type: object
+      properties:
+        vendorEventId:
+          type: string
+        lat:
+          type: number
+          format: double
+        lng:
+          type: number
+          format: double
+        speedKmph:
+          type: number
+        headingDeg:
+          type: number
+        capturedAt:
+          type: string
+          format: date-time
+      required: [vendorEventId, lat, lng, capturedAt]
+    TrackingSnapshotResponse:
+      type: object
+      properties:
+        requestId:
+          type: string
+          format: uuid
+        status:
+          $ref: '#/components/schemas/RequestStatus'
+        driver:
+          $ref: '#/components/schemas/DriverInfo'
+        etaSeconds:
+          type: integer
+        lastLocation:
+          $ref: '#/components/schemas/Position'
+        updatedAt:
+          type: string
+          format: date-time
+      required: [requestId, status, updatedAt]
+    ActiveRequestItem:
+      type: object
+      properties:
+        requestId:
+          type: string
+          format: uuid
+        requestNumber:
+          type: string
+        status:
+          $ref: '#/components/schemas/RequestStatus'
+        pickup:
+          $ref: '#/components/schemas/Location'
+        drop:
+          $ref: '#/components/schemas/Location'
+        patient:
+          $ref: '#/components/schemas/PatientInfo'
+        assignedVendor:
+          type: object
+          properties:
+            vendorId:
+              type: string
+            vendorBookingRef:
+              type: string
+        etaSeconds:
+          type: integer
+      required: [requestId, requestNumber, status]
+    ActiveRequestsListResponse:
+      type: object
+      properties:
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        total:
+          type: integer
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ActiveRequestItem'
+    TrackingHistoryResponse:
+      type: object
+      properties:
+        requestId:
+          type: string
+          format: uuid
+        positions:
+          type: array
+          items:
+            $ref: '#/components/schemas/Position'
+        startAt:
+          type: string
+          format: date-time
+        endAt:
+          type: string
+          format: date-time
+      required: [requestId, positions]
+    RequestStatus:
+      type: string
+      enum: [PENDING, ACCEPTED, ASSIGNED, EN_ROUTE, ARRIVED, IN_PROGRESS, COMPLETED, CANCELLED, FAILED]
+security:
+  - bearerAuth: []

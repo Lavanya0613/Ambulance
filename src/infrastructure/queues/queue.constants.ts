@@ -1,0 +1,16 @@
+export const QUEUE_NAMES = {
+  BOOKING: 'bookingQueue',
+  TRACKING: 'trackingQueue',
+  RETRY: 'retryQueue',
+  DLQ: 'deadLetterQueue',
+};
+
+export const QUEUE_PROVIDERS = {
+  BOOKING_QUEUE: 'BOOKING_QUEUE',
+  TRACKING_QUEUE: 'TRACKING_QUEUE',
+  RETRY_QUEUE: 'RETRY_QUEUE',
+  DLQ_QUEUE: 'DLQ_QUEUE',
+  BOOKING_WORKER: 'BOOKING_WORKER',
+  TRACKING_WORKER: 'TRACKING_WORKER',
+  RETRY_WORKER: 'RETRY_WORKER',
+};

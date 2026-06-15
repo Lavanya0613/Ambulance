@@ -1,0 +1,41 @@
+{
+  "name": "ambulance-backend",
+  "version": "1.0.0",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "start": "node -r ts-node/register -r tsconfig-paths/register src/main.ts",
+    "start:dev": "node -r ts-node/register -r tsconfig-paths/register src/main.ts",
+    "build": "tsc -p tsconfig.json --noEmit",
+    "lint": "echo \"lint not configured\""
+  },
+  "dependencies": {
+    "@nestjs/common": "^10.4.3",
+    "@nestjs/core": "^11.1.26",
+    "@nestjs/jwt": "^10.2.0",
+    "@nestjs/passport": "^10.0.3",
+    "@nestjs/platform-express": "^11.1.26",
+    "@nestjs/platform-socket.io": "^11.1.26",
+    "@nestjs/swagger": "^11.4.4",
+    "@nestjs/typeorm": "^11.0.1",
+    "@nestjs/websockets": "^11.1.26",
+    "bullmq": "^5.12.8",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.14.1",
+    "passport": "^0.7.0",
+    "passport-jwt": "^4.0.1",
+    "pg": "^8.12.0",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.1",
+    "socket.io": "^4.7.5",
+    "swagger-ui-express": "^5.0.1",
+    "tsconfig-paths": "^4.2.0",
+    "typeorm": "^0.3.20",
+    "uuid": "^14.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.1",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.6.3"
+  }
+}

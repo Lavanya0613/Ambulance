@@ -1,0 +1,1294 @@
+openapi: 3.0.3
+info:
+  title: CallHealth Ambulance Integration API
+  version: 1.0.0
+  description: |
+    OpenAPI specification for CallHealth ambulance orchestration across patient, dispatcher,
+    and vendor channels.
+
+    Authentication strategy:
+    - Patient and Dispatcher APIs: JWT Bearer token.
+    - Vendor ingestion APIs: OAuth2 Client Credentials.
+    - Vendor webhook callbacks: HMAC signature headers.
+
+    Error handling strategy:
+    - All non-2xx responses return ErrorResponse.
+    - `code` is stable and machine-readable.
+    - `correlationId` is returned for support tracing.
+servers:
+  - url: https://api.callhealth.example.com
+    description: Production
+  - url: https://sandbox-api.callhealth.example.com
+    description: Sandbox
+
+tags:
+  - name: Patient
+    description: Patient-facing ambulance actions
+  - name: Dispatcher
+    description: Dispatcher console operations
+  - name: Vendor
+    description: Vendor integration endpoints
+
+security:
+  - BearerAuth: []
+
+paths:
+  /v1/patient/ambulance-requests:
+    post:
+      tags: [Patient]
+      summary: Request Ambulance
+      description: Creates an ambulance request and starts vendor dispatch orchestration.
+      operationId: requestAmbulance
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatientAmbulanceRequestCreate'
+            examples:
+              emergencyPickup:
+                summary: Emergency pickup request
+                value:
+                  idempotencyKey: 45e0610e-7b5f-4e95-8905-c8d0fe8a9db8
+                  emergencyLevel: high
+                  pickup:
+                    addressLine: 41 MG Road, Bengaluru
+                    lat: 12.975366
+                    lng: 77.604591
+                  drop:
+                    addressLine: Fortis Hospital, Bannerghatta Road
+                    lat: 12.891286
+                    lng: 77.596211
+                  patientNotes: Chest pain and breathing difficulty
+                  preferredAmbulanceType: als
+      responses:
+        '202':
+          description: Request accepted for async dispatch
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PatientAmbulanceRequestAccepted'
+              examples:
+                accepted:
+                  value:
+                    requestId: 8a53a87f-4708-4a6d-93e7-3db6774b4c35
+                    requestNumber: AR-20260531-000045
+                    status: PENDING_VENDOR
+                    etaSeconds: null
+                    trackingAvailable: false
+                    correlationId: 4af21380-e9a1-4eca-9e56-2c6d2b98ef85
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          description: Duplicate idempotency key or invalid state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                code: IDEMPOTENCY_CONFLICT
+                message: Request with this idempotencyKey already exists.
+                correlationId: 9d784d2d-4aa7-4c20-bf24-b612f3f150d7
+                details: []
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /v1/patient/ambulance-requests/{requestId}/cancel:
+    post:
+      tags: [Patient]
+      summary: Cancel Request
+      description: Cancels an active ambulance request if cancellation window allows.
+      operationId: cancelAmbulanceRequest
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CancelRequestInput'
+            examples:
+              userCancel:
+                value:
+                  reasonCode: PATIENT_CHANGED_MIND
+                  reasonText: Found nearby hospital transport.
+      responses:
+        '200':
+          description: Cancellation accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CancelRequestResponse'
+              example:
+                requestId: 8a53a87f-4708-4a6d-93e7-3db6774b4c35
+                previousStatus: DISPATCHED
+                status: CANCELLATION_IN_PROGRESS
+                vendorCancellationTriggered: true
+                correlationId: 6a84f251-ddcc-49ae-a6d5-1bcde70410f1
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Request cannot be cancelled in current state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                code: INVALID_STATUS_TRANSITION
+                message: Request cannot be cancelled after completion.
+                correlationId: 0ac44aef-6e17-4d58-8f25-4a9ae40e3d35
+                details: []
+
+  /v1/patient/ambulance-requests/{requestId}/tracking:
+    get:
+      tags: [Patient]
+      summary: Track Ambulance
+      description: Returns latest location, route hints, and status for map rendering.
+      operationId: trackAmbulance
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+      responses:
+        '200':
+          description: Latest tracking snapshot
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrackingSnapshotResponse'
+              example:
+                requestId: 8a53a87f-4708-4a6d-93e7-3db6774b4c35
+                status: EN_ROUTE
+                ambulance:
+                  driverName: Ravi Kumar
+                  vehicleNumber: KA-01-AB-7781
+                  ambulanceType: als
+                currentLocation:
+                  lat: 12.948219
+                  lng: 77.612348
+                  capturedAt: '2026-05-31T09:58:21Z'
+                destination:
+                  lat: 12.975366
+                  lng: 77.604591
+                polyline: qo}eAejqvM}@_A{AaA
+                freshnessSeconds: 7
+                correlationId: 67f2208f-4d19-4f03-a00c-7baf96e42590
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '410':
+          description: Tracking unavailable for terminal requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                code: TRACKING_NOT_AVAILABLE
+                message: Tracking is unavailable for completed or cancelled requests.
+                correlationId: 91a80d89-462e-4425-aed4-e24aa1ef810f
+                details: []
+
+  /v1/patient/ambulance-requests/{requestId}/eta:
+    get:
+      tags: [Patient]
+      summary: View ETA
+      description: Returns current ETA estimate and confidence.
+      operationId: viewEta
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+      responses:
+        '200':
+          description: Current ETA response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EtaResponse'
+              example:
+                requestId: 8a53a87f-4708-4a6d-93e7-3db6774b4c35
+                status: EN_ROUTE
+                etaSeconds: 420
+                confidence: medium
+                lastUpdatedAt: '2026-05-31T09:58:21Z'
+                source: VENDOR_TRACKING
+                correlationId: 2c71f83d-9a67-413f-8d54-218fc7da4878
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /v1/dispatcher/ambulance-requests:
+    get:
+      tags: [Dispatcher]
+      summary: View Active Requests
+      description: Retrieves active ambulance requests for dispatcher operations.
+      operationId: viewActiveRequests
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: regionCode
+          schema:
+            type: string
+            example: BLR_SOUTH
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [PENDING_VENDOR, DISPATCHED, EN_ROUTE, ARRIVED, IN_PROGRESS]
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - in: query
+          name: pageSize
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 25
+      responses:
+        '200':
+          description: Active request list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DispatcherActiveRequestsResponse'
+              example:
+                data:
+                  - requestId: 8a53a87f-4708-4a6d-93e7-3db6774b4c35
+                    requestNumber: AR-20260531-000045
+                    patientName: Ananya S
+                    emergencyLevel: high
+                    currentStatus: EN_ROUTE
+                    requestedAt: '2026-05-31T09:50:02Z'
+                    regionCode: BLR_SOUTH
+                    vendorName: Red Health
+                    etaSeconds: 420
+                  - requestId: 4b7d69bc-90e8-4da1-848d-ec7e7222630d
+                    requestNumber: AR-20260531-000046
+                    patientName: Hemanth R
+                    emergencyLevel: medium
+                    currentStatus: PENDING_VENDOR
+                    requestedAt: '2026-05-31T09:55:41Z'
+                    regionCode: BLR_SOUTH
+                    vendorName: Red Health
+                    etaSeconds: null
+                meta:
+                  page: 1
+                  pageSize: 25
+                  total: 2
+                correlationId: cde53abd-e9f9-46f5-b64b-8d744d856995
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /v1/dispatcher/ambulances/monitor:
+    get:
+      tags: [Dispatcher]
+      summary: Monitor Ambulances
+      description: Returns live fleet snapshot for operations dashboard.
+      operationId: monitorAmbulances
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: regionCode
+          required: true
+          schema:
+            type: string
+            example: BLR_SOUTH
+      responses:
+        '200':
+          description: Ambulance monitoring payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DispatcherMonitorAmbulancesResponse'
+              example:
+                regionCode: BLR_SOUTH
+                ambulances:
+                  - requestId: 8a53a87f-4708-4a6d-93e7-3db6774b4c35
+                    driverName: Ravi Kumar
+                    vehicleNumber: KA-01-AB-7781
+                    status: EN_ROUTE
+                    lat: 12.948219
+                    lng: 77.612348
+                    etaSeconds: 420
+                    freshnessSeconds: 7
+                  - requestId: 7d2d7c84-87b5-4377-9e37-9f11c28d10e6
+                    driverName: Nikhil Bhat
+                    vehicleNumber: KA-03-CD-1172
+                    status: ARRIVED
+                    lat: 12.905003
+                    lng: 77.586110
+                    etaSeconds: 0
+                    freshnessSeconds: 4
+                correlationId: 70ae0726-d45c-44a5-a93f-fdf9ca5f6df4
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /v1/dispatcher/ambulance-requests/{requestId}/status:
+    patch:
+      tags: [Dispatcher]
+      summary: Update Status
+      description: Manually updates status for operational override with full audit trail.
+      operationId: updateRequestStatus
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DispatcherStatusUpdateRequest'
+            example:
+              status: ARRIVED
+              reasonCode: DISPATCHER_OVERRIDE
+              reasonText: Driver confirmed arrival by phone.
+      responses:
+        '200':
+          description: Status updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DispatcherStatusUpdateResponse'
+              example:
+                requestId: 8a53a87f-4708-4a6d-93e7-3db6774b4c35
+                previousStatus: EN_ROUTE
+                currentStatus: ARRIVED
+                updatedBy: user_1d23af
+                updatedAt: '2026-05-31T10:03:18Z'
+                correlationId: 4eb95ec7-3f79-46d6-8e3b-8e0f4cfd16ab
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Invalid status transition
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                code: INVALID_STATUS_TRANSITION
+                message: Cannot transition from COMPLETED to EN_ROUTE.
+                correlationId: c61f1210-7ec5-41a4-83a4-e9b8df76f735
+                details: []
+
+  /v1/vendor/bookings:
+    post:
+      tags: [Vendor]
+      summary: Create Booking
+      description: Vendor partner endpoint to accept booking requests in pull-based integration mode.
+      operationId: vendorCreateBooking
+      security:
+        - OAuth2ClientCredentials: [vendor.booking.write]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VendorCreateBookingRequest'
+            example:
+              requestId: 8a53a87f-4708-4a6d-93e7-3db6774b4c35
+              requestNumber: AR-20260531-000045
+              priority: high
+              pickup:
+                lat: 12.975366
+                lng: 77.604591
+                addressLine: 41 MG Road, Bengaluru
+              drop:
+                lat: 12.891286
+                lng: 77.596211
+                addressLine: Fortis Hospital, Bannerghatta Road
+              patient:
+                name: Ananya S
+                phoneE164: +919876543210
+              requiredAmbulanceType: als
+      responses:
+        '201':
+          description: Booking created at vendor side
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VendorCreateBookingResponse'
+              example:
+                vendorBookingRef: RH-BOOK-884421
+                accepted: true
+                status: DISPATCHED
+                driver:
+                  vendorDriverRef: RH-DRV-1133
+                  name: Ravi Kumar
+                  phoneE164: +919999998888
+                  vehicleNumber: KA-01-AB-7781
+                etaSeconds: 540
+                correlationId: 58fdb183-c936-47c8-8fda-67e8344a2dbf
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          description: Booking already exists at vendor side
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                code: BOOKING_ALREADY_EXISTS
+                message: Booking already exists for requestId.
+                correlationId: 11723530-5765-4180-97b5-58df9d7c06fb
+                details: []
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+
+  /v1/vendor/tracking-updates:
+    post:
+      tags: [Vendor]
+      summary: Receive Tracking Updates
+      description: Vendor pushes GPS and status updates to CallHealth.
+      operationId: receiveVendorTrackingUpdates
+      security:
+        - OAuth2ClientCredentials: [vendor.tracking.write]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VendorTrackingUpdateRequest'
+            example:
+              vendorBookingRef: RH-BOOK-884421
+              vendorEventId: RH-EV-77770019
+              requestId: 8a53a87f-4708-4a6d-93e7-3db6774b4c35
+              status: EN_ROUTE
+              driver:
+                vendorDriverRef: RH-DRV-1133
+                name: Ravi Kumar
+                phoneE164: +919999998888
+                vehicleNumber: KA-01-AB-7781
+              location:
+                lat: 12.948219
+                lng: 77.612348
+                speedKmph: 38.2
+                headingDeg: 182.4
+                capturedAt: '2026-05-31T09:58:21Z'
+              etaSeconds: 420
+      responses:
+        '202':
+          description: Update accepted for processing
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VendorTrackingUpdateResponse'
+              example:
+                accepted: true
+                deduplicated: false
+                correlationId: aab66e93-aaf9-4ac1-a016-c3c2bfefc5fc
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Duplicate event id conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                code: DUPLICATE_VENDOR_EVENT
+                message: vendorEventId already processed.
+                correlationId: eec19106-6d7b-45d8-ac56-7cd746ad44a0
+                details: []
+
+  /v1/vendor/webhooks/events:
+    post:
+      tags: [Vendor]
+      summary: Webhook Events
+      description: |
+        Callback endpoint for vendor async events.
+        Requires HMAC signature validation.
+      operationId: receiveVendorWebhookEvent
+      security:
+        - VendorWebhookSignature: []
+      parameters:
+        - in: header
+          name: X-Webhook-Timestamp
+          required: true
+          schema:
+            type: string
+            example: '1717142303'
+        - in: header
+          name: X-Webhook-Signature
+          required: true
+          schema:
+            type: string
+            example: sha256=ba4c...f91d
+        - in: header
+          name: X-Vendor-Code
+          required: true
+          schema:
+            type: string
+            example: red_health
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VendorWebhookEventRequest'
+            example:
+              eventId: RH-WH-9087721
+              eventType: BOOKING_STATUS_CHANGED
+              occurredAt: '2026-05-31T10:00:03Z'
+              requestId: 8a53a87f-4708-4a6d-93e7-3db6774b4c35
+              vendorBookingRef: RH-BOOK-884421
+              payload:
+                status: ARRIVED
+                reasonCode: DRIVER_CONFIRMED
+      responses:
+        '202':
+          description: Webhook accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VendorWebhookEventResponse'
+              example:
+                accepted: true
+                deduplicated: false
+                correlationId: 08c3f47f-bdad-45ba-9148-6aa4f4497a62
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          description: Invalid webhook signature
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                code: INVALID_SIGNATURE
+                message: Webhook signature verification failed.
+                correlationId: 60207658-f3a1-4b99-98ac-2f2a91986967
+                details: []
+        '409':
+          description: Duplicate webhook event id
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                code: DUPLICATE_EVENT
+                message: eventId already processed.
+                correlationId: 53a8ab4f-3c0f-4557-af6f-96f0f4f62a92
+                details: []
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT with tenant and role claims.
+    OAuth2ClientCredentials:
+      type: oauth2
+      flows:
+        clientCredentials:
+          tokenUrl: https://auth.callhealth.example.com/oauth/token
+          scopes:
+            vendor.booking.write: Create or accept booking payloads
+            vendor.tracking.write: Push tracking and status updates
+    VendorWebhookSignature:
+      type: apiKey
+      in: header
+      name: X-Webhook-Signature
+      description: |
+        HMAC-SHA256 signature over raw body using shared secret.
+        Validate with X-Webhook-Timestamp and replay window checks.
+
+  parameters:
+    RequestId:
+      in: path
+      name: requestId
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+  responses:
+    BadRequest:
+      description: Invalid request payload
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            code: VALIDATION_ERROR
+            message: Request validation failed.
+            correlationId: 8d3b4ea9-a74a-45e0-9e31-470f02faa837
+            details:
+              - field: pickup.lat
+                issue: must be between -90 and 90
+    Unauthorized:
+      description: Missing or invalid authentication
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            code: UNAUTHORIZED
+            message: Authentication token is missing or invalid.
+            correlationId: 0ff52b9e-8b02-4a43-88e8-2be8db3a51ab
+            details: []
+    Forbidden:
+      description: Authenticated but lacks required permissions
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            code: FORBIDDEN
+            message: User role does not have permission for this action.
+            correlationId: 29f938f8-52fd-42be-ac0c-1225f9cec00b
+            details: []
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            code: RESOURCE_NOT_FOUND
+            message: Requested resource does not exist.
+            correlationId: a352f31a-7dde-4c59-a13f-b9be77f14f9d
+            details: []
+    UnprocessableEntity:
+      description: Semantic validation error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            code: BUSINESS_RULE_VIOLATION
+            message: Selected ambulance type is not serviceable in this region.
+            correlationId: e5f25b4f-eb52-496d-9333-eb07a30f24ea
+            details:
+              - field: preferredAmbulanceType
+                issue: unsupported in BLR_SOUTH
+    TooManyRequests:
+      description: Rate limit exceeded
+      headers:
+        Retry-After:
+          schema:
+            type: integer
+            example: 30
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            code: RATE_LIMITED
+            message: Too many requests. Retry after 30 seconds.
+            correlationId: 53ef804d-534f-474a-a4c2-fb05ff65d0d5
+            details: []
+    InternalServerError:
+      description: Unexpected server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            code: INTERNAL_ERROR
+            message: Something went wrong. Please retry.
+            correlationId: 9734f873-2f29-4f4c-ab5f-47ec94df3141
+            details: []
+
+  schemas:
+    PatientAmbulanceRequestCreate:
+      type: object
+      required:
+        - idempotencyKey
+        - emergencyLevel
+        - pickup
+      properties:
+        idempotencyKey:
+          type: string
+          maxLength: 120
+        emergencyLevel:
+          type: string
+          enum: [low, medium, high, critical]
+        pickup:
+          $ref: '#/components/schemas/AddressLocation'
+        drop:
+          $ref: '#/components/schemas/AddressLocation'
+        patientNotes:
+          type: string
+          maxLength: 2000
+        preferredAmbulanceType:
+          type: string
+          enum: [bls, als, icu, neonatal]
+
+    PatientAmbulanceRequestAccepted:
+      type: object
+      required:
+        - requestId
+        - requestNumber
+        - status
+        - trackingAvailable
+        - correlationId
+      properties:
+        requestId:
+          type: string
+          format: uuid
+        requestNumber:
+          type: string
+        status:
+          $ref: '#/components/schemas/RequestStatus'
+        etaSeconds:
+          type: integer
+          nullable: true
+        trackingAvailable:
+          type: boolean
+        correlationId:
+          type: string
+          format: uuid
+
+    CancelRequestInput:
+      type: object
+      required:
+        - reasonCode
+      properties:
+        reasonCode:
+          type: string
+          enum:
+            - PATIENT_CHANGED_MIND
+            - DUPLICATE_REQUEST
+            - ALTERNATE_TRANSPORT
+            - OTHER
+        reasonText:
+          type: string
+          maxLength: 500
+
+    CancelRequestResponse:
+      type: object
+      required:
+        - requestId
+        - previousStatus
+        - status
+        - vendorCancellationTriggered
+        - correlationId
+      properties:
+        requestId:
+          type: string
+          format: uuid
+        previousStatus:
+          $ref: '#/components/schemas/RequestStatus'
+        status:
+          type: string
+          enum: [CANCELLATION_IN_PROGRESS, CANCELLED]
+        vendorCancellationTriggered:
+          type: boolean
+        correlationId:
+          type: string
+          format: uuid
+
+    TrackingSnapshotResponse:
+      type: object
+      required:
+        - requestId
+        - status
+        - currentLocation
+        - freshnessSeconds
+        - correlationId
+      properties:
+        requestId:
+          type: string
+          format: uuid
+        status:
+          $ref: '#/components/schemas/RequestStatus'
+        ambulance:
+          $ref: '#/components/schemas/AmbulancePublicInfo'
+        currentLocation:
+          $ref: '#/components/schemas/GeoPointWithTime'
+        destination:
+          $ref: '#/components/schemas/GeoPoint'
+        polyline:
+          type: string
+          description: Encoded route polyline for map rendering.
+        freshnessSeconds:
+          type: integer
+          minimum: 0
+        correlationId:
+          type: string
+          format: uuid
+
+    EtaResponse:
+      type: object
+      required:
+        - requestId
+        - status
+        - etaSeconds
+        - confidence
+        - lastUpdatedAt
+        - source
+        - correlationId
+      properties:
+        requestId:
+          type: string
+          format: uuid
+        status:
+          $ref: '#/components/schemas/RequestStatus'
+        etaSeconds:
+          type: integer
+          nullable: true
+        confidence:
+          type: string
+          enum: [low, medium, high]
+        lastUpdatedAt:
+          type: string
+          format: date-time
+        source:
+          type: string
+          enum: [VENDOR_TRACKING, MAPS_ESTIMATE, FALLBACK_ESTIMATE]
+        correlationId:
+          type: string
+          format: uuid
+
+    DispatcherActiveRequestsResponse:
+      type: object
+      required: [data, meta, correlationId]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/DispatcherActiveRequestItem'
+        meta:
+          $ref: '#/components/schemas/PaginationMeta'
+        correlationId:
+          type: string
+          format: uuid
+
+    DispatcherActiveRequestItem:
+      type: object
+      required:
+        - requestId
+        - requestNumber
+        - patientName
+        - emergencyLevel
+        - currentStatus
+        - requestedAt
+        - regionCode
+      properties:
+        requestId:
+          type: string
+          format: uuid
+        requestNumber:
+          type: string
+        patientName:
+          type: string
+        emergencyLevel:
+          type: string
+          enum: [low, medium, high, critical]
+        currentStatus:
+          $ref: '#/components/schemas/RequestStatus'
+        requestedAt:
+          type: string
+          format: date-time
+        regionCode:
+          type: string
+        vendorName:
+          type: string
+        etaSeconds:
+          type: integer
+          nullable: true
+
+    DispatcherMonitorAmbulancesResponse:
+      type: object
+      required: [regionCode, ambulances, correlationId]
+      properties:
+        regionCode:
+          type: string
+        ambulances:
+          type: array
+          items:
+            $ref: '#/components/schemas/DispatcherMonitorAmbulanceItem'
+        correlationId:
+          type: string
+          format: uuid
+
+    DispatcherMonitorAmbulanceItem:
+      type: object
+      required:
+        - requestId
+        - status
+        - lat
+        - lng
+        - freshnessSeconds
+      properties:
+        requestId:
+          type: string
+          format: uuid
+        driverName:
+          type: string
+        vehicleNumber:
+          type: string
+        status:
+          $ref: '#/components/schemas/RequestStatus'
+        lat:
+          type: number
+          format: double
+        lng:
+          type: number
+          format: double
+        etaSeconds:
+          type: integer
+          nullable: true
+        freshnessSeconds:
+          type: integer
+
+    DispatcherStatusUpdateRequest:
+      type: object
+      required: [status]
+      properties:
+        status:
+          $ref: '#/components/schemas/RequestStatus'
+        reasonCode:
+          type: string
+          enum: [DISPATCHER_OVERRIDE, PATIENT_CONFIRMED, FIELD_CORRECTION, OTHER]
+        reasonText:
+          type: string
+          maxLength: 500
+
+    DispatcherStatusUpdateResponse:
+      type: object
+      required:
+        - requestId
+        - previousStatus
+        - currentStatus
+        - updatedBy
+        - updatedAt
+        - correlationId
+      properties:
+        requestId:
+          type: string
+          format: uuid
+        previousStatus:
+          $ref: '#/components/schemas/RequestStatus'
+        currentStatus:
+          $ref: '#/components/schemas/RequestStatus'
+        updatedBy:
+          type: string
+        updatedAt:
+          type: string
+          format: date-time
+        correlationId:
+          type: string
+          format: uuid
+
+    VendorCreateBookingRequest:
+      type: object
+      required:
+        - requestId
+        - requestNumber
+        - priority
+        - pickup
+        - patient
+      properties:
+        requestId:
+          type: string
+          format: uuid
+        requestNumber:
+          type: string
+        priority:
+          type: string
+          enum: [low, medium, high, critical]
+        pickup:
+          $ref: '#/components/schemas/AddressLocation'
+        drop:
+          $ref: '#/components/schemas/AddressLocation'
+        patient:
+          $ref: '#/components/schemas/VendorPatientInfo'
+        requiredAmbulanceType:
+          type: string
+          enum: [bls, als, icu, neonatal]
+
+    VendorCreateBookingResponse:
+      type: object
+      required:
+        - vendorBookingRef
+        - accepted
+        - status
+        - correlationId
+      properties:
+        vendorBookingRef:
+          type: string
+        accepted:
+          type: boolean
+        status:
+          $ref: '#/components/schemas/RequestStatus'
+        driver:
+          $ref: '#/components/schemas/VendorDriverInfo'
+        etaSeconds:
+          type: integer
+          nullable: true
+        correlationId:
+          type: string
+          format: uuid
+
+    VendorTrackingUpdateRequest:
+      type: object
+      required:
+        - vendorBookingRef
+        - vendorEventId
+        - requestId
+        - status
+        - location
+      properties:
+        vendorBookingRef:
+          type: string
+        vendorEventId:
+          type: string
+        requestId:
+          type: string
+          format: uuid
+        status:
+          $ref: '#/components/schemas/RequestStatus'
+        driver:
+          $ref: '#/components/schemas/VendorDriverInfo'
+        location:
+          $ref: '#/components/schemas/VendorTrackingLocation'
+        etaSeconds:
+          type: integer
+          nullable: true
+
+    VendorTrackingUpdateResponse:
+      type: object
+      required: [accepted, deduplicated, correlationId]
+      properties:
+        accepted:
+          type: boolean
+        deduplicated:
+          type: boolean
+        correlationId:
+          type: string
+          format: uuid
+
+    VendorWebhookEventRequest:
+      type: object
+      required:
+        - eventId
+        - eventType
+        - occurredAt
+      properties:
+        eventId:
+          type: string
+        eventType:
+          type: string
+          enum:
+            - BOOKING_STATUS_CHANGED
+            - DRIVER_ASSIGNED
+            - DRIVER_REASSIGNED
+            - BOOKING_CANCELLED
+            - TRACKING_GAP_ALERT
+        occurredAt:
+          type: string
+          format: date-time
+        requestId:
+          type: string
+          format: uuid
+        vendorBookingRef:
+          type: string
+        payload:
+          type: object
+          additionalProperties: true
+
+    VendorWebhookEventResponse:
+      type: object
+      required: [accepted, deduplicated, correlationId]
+      properties:
+        accepted:
+          type: boolean
+        deduplicated:
+          type: boolean
+        correlationId:
+          type: string
+          format: uuid
+
+    VendorPatientInfo:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        phoneE164:
+          type: string
+
+    VendorDriverInfo:
+      type: object
+      properties:
+        vendorDriverRef:
+          type: string
+        name:
+          type: string
+        phoneE164:
+          type: string
+        vehicleNumber:
+          type: string
+
+    VendorTrackingLocation:
+      type: object
+      required: [lat, lng, capturedAt]
+      properties:
+        lat:
+          type: number
+          format: double
+        lng:
+          type: number
+          format: double
+        speedKmph:
+          type: number
+          format: double
+        headingDeg:
+          type: number
+          format: double
+        capturedAt:
+          type: string
+          format: date-time
+
+    AmbulancePublicInfo:
+      type: object
+      properties:
+        driverName:
+          type: string
+        vehicleNumber:
+          type: string
+        ambulanceType:
+          type: string
+
+    AddressLocation:
+      type: object
+      required: [lat, lng]
+      properties:
+        addressLine:
+          type: string
+        lat:
+          type: number
+          format: double
+          minimum: -90
+          maximum: 90
+        lng:
+          type: number
+          format: double
+          minimum: -180
+          maximum: 180
+
+    GeoPoint:
+      type: object
+      required: [lat, lng]
+      properties:
+        lat:
+          type: number
+          format: double
+        lng:
+          type: number
+          format: double
+
+    GeoPointWithTime:
+      allOf:
+        - $ref: '#/components/schemas/GeoPoint'
+        - type: object
+          required: [capturedAt]
+          properties:
+            capturedAt:
+              type: string
+              format: date-time
+
+    RequestStatus:
+      type: string
+      enum:
+        - NEW
+        - PENDING_VENDOR
+        - DISPATCHED
+        - EN_ROUTE
+        - ARRIVED
+        - IN_PROGRESS
+        - COMPLETED
+        - CANCELLATION_IN_PROGRESS
+        - CANCELLED
+        - FAILED
+
+    PaginationMeta:
+      type: object
+      required: [page, pageSize, total]
+      properties:
+        page:
+          type: integer
+          minimum: 1
+        pageSize:
+          type: integer
+          minimum: 1
+        total:
+          type: integer
+          minimum: 0
+
+    ErrorResponse:
+      type: object
+      required:
+        - code
+        - message
+        - correlationId
+        - details
+      properties:
+        code:
+          type: string
+          example: VALIDATION_ERROR
+        message:
+          type: string
+          example: Request validation failed.
+        correlationId:
+          type: string
+          format: uuid
+        details:
+          type: array
+          items:
+            $ref: '#/components/schemas/ErrorDetail'
+
+    ErrorDetail:
+      type: object
+      properties:
+        field:
+          type: string
+          example: pickup.lat
+        issue:
+          type: string
+          example: must be between -90 and 90
