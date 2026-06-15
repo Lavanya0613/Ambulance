@@ -90,32 +90,43 @@ const ambulanceIcon = L.divIcon({
 // ─── Status Config ───────────────────────────────────────────────────────────
 
 const STATUS_STEPS = [
-  { key: 'PENDING',    label: 'Pending',    icon: '🕐', color: '#f59e0b' },
-  { key: 'ASSIGNED',   label: 'Assigned',   icon: '✅', color: '#8b5cf6' },
-  { key: 'EN_ROUTE',   label: 'En Route',   icon: '🚑', color: '#3b82f6' },
-  { key: 'ARRIVED',    label: 'Arrived',    icon: '📍', color: '#06b6d4' },
-  { key: 'COMPLETED',  label: 'Completed',  icon: '🏥', color: '#6ba539' },
+  { key: 'PENDING',    label: 'Request Created',  icon: '📋', color: '#d97706' },
+  { key: 'ASSIGNED',   label: 'Vendor Assigned',  icon: '🏢', color: '#7c3aed' },
+  { key: 'DRIVER',     label: 'Driver Assigned',  icon: '👨‍✈️', color: '#1d4ed8' },
+  { key: 'EN_ROUTE',   label: 'En Route',         icon: '🚑', color: '#0891b2' },
+  { key: 'ARRIVED',    label: 'Arrived',          icon: '📍', color: '#059669' },
+  { key: 'COMPLETED',  label: 'Completed',        icon: '✅', color: '#16a34a' },
 ];
 
 const TERMINAL_STATUSES = ['COMPLETED', 'CANCELLED', 'FAILED'];
 
 const getStatusMeta = (status: string) => {
   switch (status) {
-    case 'PENDING':     return { color: '#f59e0b', bg: 'rgba(245,158,11,0.12)',  muiColor: 'warning'   as const };
-    case 'ASSIGNED':    return { color: '#8b5cf6', bg: 'rgba(139,92,246,0.12)', muiColor: 'secondary' as const };
+    case 'PENDING':     return { color: '#d97706', bg: 'rgba(217,119,6,0.1)',   muiColor: 'warning'   as const };
+    case 'ASSIGNED':    return { color: '#7c3aed', bg: 'rgba(124,58,237,0.1)', muiColor: 'secondary' as const };
     case 'EN_ROUTE':
-    case 'IN_PROGRESS': return { color: '#3b82f6', bg: 'rgba(59,130,246,0.12)', muiColor: 'info'      as const };
-    case 'ARRIVED':     return { color: '#06b6d4', bg: 'rgba(6,182,212,0.12)',  muiColor: 'info'      as const };
-    case 'COMPLETED':   return { color: '#6ba539', bg: 'rgba(107,165,57,0.12)', muiColor: 'success'   as const };
+    case 'IN_PROGRESS': return { color: '#1d4ed8', bg: 'rgba(29,78,216,0.1)',  muiColor: 'info'      as const };
+    case 'ARRIVED':     return { color: '#0891b2', bg: 'rgba(8,145,178,0.1)',  muiColor: 'info'      as const };
+    case 'COMPLETED':   return { color: '#16a34a', bg: 'rgba(22,163,74,0.1)',  muiColor: 'success'   as const };
     case 'CANCELLED':
-    case 'FAILED':      return { color: '#ef4444', bg: 'rgba(239,68,68,0.12)',  muiColor: 'error'     as const };
-    default:            return { color: '#94a3b8', bg: 'rgba(148,163,184,0.12)',muiColor: 'default'   as const };
+    case 'FAILED':      return { color: '#dc2626', bg: 'rgba(220,38,38,0.1)',  muiColor: 'error'     as const };
+    default:            return { color: '#64748b', bg: 'rgba(100,116,139,0.1)',muiColor: 'default'   as const };
   }
 };
 
 const getStepIndex = (status: string) => {
-  const idx = STATUS_STEPS.findIndex(s => s.key === status);
-  return idx === -1 ? 0 : idx;
+  // Map actual statuses to step indices
+  const map: Record<string, number> = {
+    PENDING:     0,
+    ASSIGNED:    2, // vendor + driver both done
+    EN_ROUTE:    3,
+    IN_PROGRESS: 3,
+    ARRIVED:     4,
+    COMPLETED:   5,
+    CANCELLED:   0,
+    FAILED:      0,
+  };
+  return map[status] ?? 0;
 };
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -385,7 +396,7 @@ export default function TrackingPage() {
     if (!requestId) return;
     setCancelling(true);
     try {
-      await axios.post(`${API_BASE_URL}/patient/requests/${requestId}/cancel`, { reasonCode: cancelReason });
+      await axios.post(`${API_BASE_URL}/patient/requests/${requestId}/cancel`, { reasonCode: 'patient_cancelled' });
       setLiveStatus('CANCELLED');
       setCancelOpen(false);
       refetch();
@@ -394,7 +405,7 @@ export default function TrackingPage() {
     } finally {
       setCancelling(false);
     }
-  }, [requestId, cancelReason, refetch]);
+  }, [requestId, refetch]);
 
   // ── Derived display values ────────────────────────────────────────────────
   const effectiveStatus   = liveStatus   ?? request?.status   ?? 'PENDING';
@@ -532,42 +543,47 @@ export default function TrackingPage() {
 
             return (
               <Box key={step.key} sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: 2, flex: 1 }}>
-                <Box sx={{
-                  width: 40, height: 40, borderRadius: '50%',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: isActive ? '1.3rem' : '1rem',
-                  border: `2.5px solid ${isCompleted ? step.color : isActive ? step.color : 'rgba(255,255,255,0.1)'}`,
-                  bgcolor: isCompleted ? `${step.color}22` : isActive ? `${step.color}33` : 'rgba(15,23,42,0.8)',
-                  boxShadow: isActive ? `0 0 14px ${step.color}88` : 'none',
-                  transition: 'all 0.4s ease',
-                  position: 'relative',
-                }}>
-                  {isCompleted ? (
-                    <CheckCircleIcon sx={{ color: step.color, fontSize: '1.1rem' }} />
-                  ) : isActive ? (
-                    <Box sx={{ fontSize: '1.1rem' }}>{step.icon}</Box>
-                  ) : isCancelled && idx > currentStep ? (
-                    <RadioButtonUncheckedIcon sx={{ color: 'rgba(255,255,255,0.15)', fontSize: '1rem' }} />
-                  ) : (
-                    <HourglassEmptyIcon sx={{ color: 'rgba(255,255,255,0.2)', fontSize: '0.9rem' }} />
-                  )}
-                  {isActive && (
-                    <Box sx={{
-                      position: 'absolute', inset: -4, borderRadius: '50%',
-                      border: `2px solid ${step.color}`,
-                      animation: 'pulsate 1.5s ease-out infinite',
-                    }} />
-                  )}
-                </Box>
+                <Tooltip title={step.label}>
+                  <Box sx={{
+                    width: { xs: 32, sm: 40 }, height: { xs: 32, sm: 40 }, borderRadius: '50%',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: isActive ? '1.1rem' : '0.9rem',
+                    border: `2.5px solid ${isCompleted ? step.color : isActive ? step.color : '#e2e8f0'}`,
+                    bgcolor: isCompleted ? `${step.color}22` : isActive ? `${step.color}33` : '#fff',
+                    boxShadow: isActive ? `0 0 12px ${step.color}88` : 'none',
+                    transition: 'all 0.4s ease',
+                    position: 'relative',
+                    cursor: 'default',
+                  }}>
+                    {isCompleted ? (
+                      <CheckCircleIcon sx={{ color: step.color, fontSize: { xs: '0.9rem', sm: '1.1rem' } }} />
+                    ) : isActive ? (
+                      <Box sx={{ fontSize: { xs: '0.9rem', sm: '1rem' } }}>{step.icon}</Box>
+                    ) : isCancelled && idx > currentStep ? (
+                      <RadioButtonUncheckedIcon sx={{ color: '#d1d5db', fontSize: '0.9rem' }} />
+                    ) : (
+                      <HourglassEmptyIcon sx={{ color: '#d1d5db', fontSize: '0.85rem' }} />
+                    )}
+                    {isActive && (
+                      <Box sx={{
+                        position: 'absolute', inset: -4, borderRadius: '50%',
+                        border: `2px solid ${step.color}`,
+                        animation: 'pulsate 1.5s ease-out infinite',
+                      }} />
+                    )}
+                  </Box>
+                </Tooltip>
                 <Typography
                   variant="caption"
                   sx={{
                     mt: 0.8,
                     fontWeight: isActive ? 800 : isCompleted ? 600 : 400,
-                    color: isActive ? step.color : isCompleted ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.25)',
-                    fontSize: '0.7rem',
+                    color: isActive ? step.color : isCompleted ? '#475569' : '#d1d5db',
+                    fontSize: '0.62rem',
                     display: { xs: 'none', sm: 'block' },
                     textAlign: 'center',
+                    lineHeight: 1.2,
+                    maxWidth: 72,
                   }}
                 >
                   {step.label}

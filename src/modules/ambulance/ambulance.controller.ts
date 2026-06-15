@@ -21,6 +21,12 @@ import { TrackingSnapshotDto } from './dto/tracking-snapshot.dto';
 export class AmbulanceController {
   constructor(private readonly ambulanceService: AmbulanceService) {}
 
+  @Get()
+  @ApiOperation({ summary: 'List all ambulance requests' })
+  async listRequests() {
+    return this.ambulanceService.listRequests();
+  }
+
   @Post()
   @ApiOperation({ summary: 'Request Ambulance' })
   @ApiResponse({ status: 201, description: 'Ambulance request created', type: RequestAmbulanceResponseDto })

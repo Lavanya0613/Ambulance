@@ -81,6 +81,30 @@ export class AmbulanceService {
     return response;
   }
 
+  async listRequests() {
+    const requests = await this.requestRepo.find({
+      order: { createdAt: 'DESC' },
+    });
+    return requests.map((r) => ({
+      requestId: r.id,
+      requestNumber: r.requestNumber,
+      status: r.status,
+      priority: r.priority || 'normal',
+      patientName: r.patientName,
+      patientPhone: r.patientPhone,
+      pickupLat: r.pickupLat,
+      pickupLng: r.pickupLng,
+      dropLat: r.dropLat,
+      dropLng: r.dropLng,
+      assignedVendorId: r.assignedVendorId || null,
+      driver: r.assignedDriver || null,
+      etaSeconds: r.etaSeconds || null,
+      cancelReason: r.cancelReason || null,
+      createdAt: r.createdAt,
+      updatedAt: r.updatedAt,
+    }));
+  }
+
   async cancelRequest(requestId: string, dto: CancelAmbulanceDto) {
     const request = await this.requestRepo.findOne({ where: { id: requestId } });
     if (!request) return null;
