@@ -1,12 +1,14 @@
 import { Column, CreateDateColumn, Entity, OneToMany, PrimaryColumn, UpdateDateColumn } from 'typeorm';
 
 export enum RequestStatus {
-  PENDING = 'PENDING',
-  ACCEPTED = 'ACCEPTED',
-  ASSIGNED = 'ASSIGNED',
+  REQUEST_CREATED = 'REQUEST_CREATED',
+  SEARCHING_DRIVER = 'SEARCHING_DRIVER',
+  VENDOR_ACCEPTED = 'VENDOR_ACCEPTED',
+  DRIVER_ASSIGNED = 'DRIVER_ASSIGNED',
   EN_ROUTE = 'EN_ROUTE',
   ARRIVED = 'ARRIVED',
-  IN_PROGRESS = 'IN_PROGRESS',
+  PATIENT_ONBOARD = 'PATIENT_ONBOARD',
+  DESTINATION_REACHED = 'DESTINATION_REACHED',
   COMPLETED = 'COMPLETED',
   CANCELLED = 'CANCELLED',
   FAILED = 'FAILED',
@@ -20,8 +22,11 @@ export class AmbulanceRequest {
   @Column({ unique: true })
   requestNumber: string;
 
-  @Column({ type: 'enum', enum: RequestStatus, default: RequestStatus.PENDING })
+  @Column({ type: 'enum', enum: RequestStatus, default: RequestStatus.REQUEST_CREATED })
   status: RequestStatus;
+
+  @Column({ nullable: true })
+  pickupAddress?: string;
 
   @Column('double precision')
   pickupLat: number;
@@ -29,11 +34,17 @@ export class AmbulanceRequest {
   @Column('double precision')
   pickupLng: number;
 
+  @Column({ nullable: true })
+  dropAddress?: string;
+
   @Column('double precision')
   dropLat: number;
 
   @Column('double precision')
   dropLng: number;
+
+  @Column({ nullable: true })
+  patientId?: string;
 
   @Column()
   patientName: string;
@@ -47,7 +58,7 @@ export class AmbulanceRequest {
   @Column({ nullable: true })
   priority?: string;
 
-  @Column({ nullable: true })
+  @Column({ nullable: true, unique: true })
   idempotencyKey?: string;
 
   @Column({ nullable: true })
@@ -56,8 +67,20 @@ export class AmbulanceRequest {
   @Column({ nullable: true })
   vendorBookingRef?: string;
 
-  @Column('jsonb', { nullable: true })
-  assignedDriver?: any;
+  @Column({ nullable: true })
+  vendorDriverRef?: string;
+
+  @Column({ nullable: true })
+  vendorDriverName?: string;
+
+  @Column({ nullable: true })
+  vendorDriverPhone?: string;
+
+  @Column({ nullable: true })
+  vendorVehicleNumber?: string;
+
+  @Column({ nullable: true })
+  vendorAmbulanceType?: string;
 
   @Column({ type: 'integer', nullable: true })
   etaSeconds?: number;
@@ -73,4 +96,5 @@ export class AmbulanceRequest {
 
   @OneToMany(() => (require('./tracking-position.entity').TrackingPosition), (p: any) => p.request)
   positions: any[];
+
 }

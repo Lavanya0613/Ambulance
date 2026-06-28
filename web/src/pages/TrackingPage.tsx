@@ -6,54 +6,31 @@ import { io, Socket } from 'socket.io-client';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import {
-  Box,
-  Container,
-  Grid,
-  Card,
-  CardContent,
-  Typography,
-  Chip,
-  Button,
-  Avatar,
-  Divider,
-  Alert,
-  CircularProgress,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  TextField,
-  MenuItem,
-  Tooltip,
-  IconButton,
+  Box, Container, Grid, Card, CardContent, Typography, Chip, Button, Avatar, Alert, CircularProgress, Dialog, DialogTitle, DialogContent, DialogActions, TextField, MenuItem, Snackbar
 } from '@mui/material';
 import PhoneIcon from '@mui/icons-material/Phone';
-import CancelIcon from '@mui/icons-material/Cancel';
-import AccessTimeIcon from '@mui/icons-material/AccessTime';
-import DirectionsCarIcon from '@mui/icons-material/DirectionsCar';
-import LocalHospitalIcon from '@mui/icons-material/LocalHospital';
 import WifiIcon from '@mui/icons-material/Wifi';
 import WifiOffIcon from '@mui/icons-material/WifiOff';
-import RefreshIcon from '@mui/icons-material/Refresh';
-import SpeedIcon from '@mui/icons-material/Speed';
 import PersonIcon from '@mui/icons-material/Person';
-import BadgeIcon from '@mui/icons-material/Badge';
-import NavigationIcon from '@mui/icons-material/Navigation';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
-import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked';
-import HourglassEmptyIcon from '@mui/icons-material/HourglassEmpty';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import LocationOnIcon from '@mui/icons-material/LocationOn';
 
 const API_BASE_URL = 'http://localhost:3000';
 
-// ─── Leaflet Custom Icons ────────────────────────────────────────────────────
+// Fallback patient mock token if not logged in as dispatcher
+const getAuthToken = () => {
+  const token = localStorage.getItem('access_token');
+  if (token) return token;
+  return 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ0ZXN0LXVzZXIiLCJpZCI6InRlc3QtdXNlciIsInJvbGUiOiJwYXRpZW50IiwiaWF0IjoxNzgxODQzMDA1LCJleHAiOjQ5Mzc2MDMwMDV9.PaQ2nZb25EAIKpbPEU6Jm2QDd0Dkt_ZL8VxRC-eFmNQ';
+};
 
 const patientIcon = L.divIcon({
   className: '',
   html: `
     <div style="position:relative;width:36px;height:36px;display:flex;align-items:center;justify-content:center;">
-      <div style="position:absolute;border:2px solid #6ba539;border-radius:50%;width:36px;height:36px;animation:pulsate 1.8s ease-out infinite;opacity:0;"></div>
-      <div style="background:linear-gradient(135deg,#6ba539,#4f8524);border:2.5px solid #fff;border-radius:50%;width:20px;height:20px;box-shadow:0 0 12px rgba(107,165,57,0.7);display:flex;align-items:center;justify-content:center;">
+      <div style="position:absolute;border:2px solid #76B82A;border-radius:50%;width:36px;height:36px;animation:pulsate 1.8s ease-out infinite;opacity:0;"></div>
+      <div style="background:linear-gradient(135deg,#76B82A,#5b961f);border:2.5px solid #fff;border-radius:50%;width:20px;height:20px;box-shadow:0 0 12px rgba(118,184,42,0.7);display:flex;align-items:center;justify-content:center;">
         <svg style="width:11px;height:11px;fill:white;" viewBox="0 0 24 24"><path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/></svg>
       </div>
     </div>`,
@@ -65,8 +42,8 @@ const hospitalIcon = L.divIcon({
   className: '',
   html: `
     <div style="position:relative;width:36px;height:36px;display:flex;align-items:center;justify-content:center;">
-      <div style="position:absolute;border:2px solid #ef4444;border-radius:50%;width:36px;height:36px;animation:pulsate 2s ease-out infinite;opacity:0;"></div>
-      <div style="background:linear-gradient(135deg,#ef4444,#b91c1c);border:2.5px solid #fff;border-radius:50%;width:20px;height:20px;box-shadow:0 0 12px rgba(239,68,68,0.7);display:flex;align-items:center;justify-content:center;">
+      <div style="position:absolute;border:2px solid #E53935;border-radius:50%;width:36px;height:36px;animation:pulsate 2s ease-out infinite;opacity:0;"></div>
+      <div style="background:linear-gradient(135deg,#E53935,#b91c1c);border:2.5px solid #fff;border-radius:50%;width:20px;height:20px;box-shadow:0 0 12px rgba(229,57,53,0.7);display:flex;align-items:center;justify-content:center;">
         <svg style="width:12px;height:12px;fill:white;" viewBox="0 0 24 24"><path d="M19 8h-2v3h-3v2h3v3h2v-3h3v-2h-3V8zM4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm14-4H8C6.9 2 6 2.9 6 4v12c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>
       </div>
     </div>`,
@@ -78,8 +55,8 @@ const ambulanceIcon = L.divIcon({
   className: '',
   html: `
     <div style="position:relative;width:46px;height:46px;display:flex;align-items:center;justify-content:center;">
-      <div style="position:absolute;border:2.5px solid #3b82f6;border-radius:50%;width:46px;height:46px;animation:pulsate 1.4s ease-out infinite;opacity:0;"></div>
-      <div style="background:linear-gradient(135deg,#3b82f6,#1d4ed8);border:3px solid #fff;border-radius:50%;width:30px;height:30px;box-shadow:0 0 16px rgba(59,130,246,0.9);display:flex;align-items:center;justify-content:center;font-size:15px;">
+      <div style="position:absolute;border:2.5px solid #1E3A5F;border-radius:50%;width:46px;height:46px;animation:pulsate 1.4s ease-out infinite;opacity:0;"></div>
+      <div style="background:linear-gradient(135deg,#1E3A5F,#112238);border:3px solid #fff;border-radius:50%;width:30px;height:30px;box-shadow:0 0 16px rgba(30,58,95,0.9);display:flex;align-items:center;justify-content:center;font-size:15px;transition:transform 2s linear;">
         🚑
       </div>
     </div>`,
@@ -87,310 +64,197 @@ const ambulanceIcon = L.divIcon({
   iconAnchor: [23, 23],
 });
 
-// ─── Status Config ───────────────────────────────────────────────────────────
-
 const STATUS_STEPS = [
-  { key: 'PENDING',    label: 'Request Created',  icon: '📋', color: '#d97706' },
-  { key: 'ASSIGNED',   label: 'Vendor Assigned',  icon: '🏢', color: '#7c3aed' },
-  { key: 'DRIVER',     label: 'Driver Assigned',  icon: '👨‍✈️', color: '#1d4ed8' },
-  { key: 'EN_ROUTE',   label: 'En Route',         icon: '🚑', color: '#0891b2' },
-  { key: 'ARRIVED',    label: 'Arrived',          icon: '📍', color: '#059669' },
-  { key: 'COMPLETED',  label: 'Completed',        icon: '✅', color: '#16a34a' },
+  { key: 'REQUEST_CREATED',    label: 'Request Created',  icon: '📋', color: '#6b7280' },
+  { key: 'SEARCHING_DRIVER',   label: 'Searching',        icon: '🔍', color: '#F4B400' },
+  { key: 'VENDOR_ACCEPTED',    label: 'Accepted',         icon: '🤝', color: '#1E3A5F' },
+  { key: 'DRIVER_ASSIGNED',    label: 'Driver Assigned',  icon: '👨‍✈️', color: '#1E3A5F' },
+  { key: 'EN_ROUTE',           label: 'En Route',         icon: '🚑', color: '#1E3A5F' },
+  { key: 'ARRIVED',            label: 'Arriving',         icon: '📍', color: '#1E3A5F' },
+  { key: 'PATIENT_ONBOARD',    label: 'Patient Onboard',  icon: '🛏️', color: '#1E3A5F' },
+  { key: 'DESTINATION_REACHED',label: 'At Hospital',      icon: '🏥', color: '#1E3A5F' },
+  { key: 'COMPLETED',          label: 'Completed',        icon: '✅', color: '#76B82A' },
 ];
 
 const TERMINAL_STATUSES = ['COMPLETED', 'CANCELLED', 'FAILED'];
 
 const getStatusMeta = (status: string) => {
   switch (status) {
-    case 'PENDING':     return { color: '#d97706', bg: 'rgba(217,119,6,0.1)',   muiColor: 'warning'   as const };
-    case 'ASSIGNED':    return { color: '#7c3aed', bg: 'rgba(124,58,237,0.1)', muiColor: 'secondary' as const };
-    case 'EN_ROUTE':
-    case 'IN_PROGRESS': return { color: '#1d4ed8', bg: 'rgba(29,78,216,0.1)',  muiColor: 'info'      as const };
-    case 'ARRIVED':     return { color: '#0891b2', bg: 'rgba(8,145,178,0.1)',  muiColor: 'info'      as const };
-    case 'COMPLETED':   return { color: '#16a34a', bg: 'rgba(22,163,74,0.1)',  muiColor: 'success'   as const };
+    case 'PENDING':
+    case 'REQUEST_CREATED': return { color: '#6b7280', bg: '#f3f4f6' };
+    case 'SEARCHING_DRIVER':return { color: '#F4B400', bg: '#fef3c7' };
+    case 'VENDOR_ACCEPTED': return { color: '#1E3A5F', bg: '#e8ecf1' };
+    case 'ASSIGNED':
+    case 'DRIVER_ASSIGNED': return { color: '#1E3A5F', bg: '#e8ecf1' };
+    case 'EN_ROUTE':        return { color: '#1E3A5F', bg: '#e8ecf1' };
+    case 'ARRIVED':         return { color: '#76B82A', bg: '#f1f8eb' };
+    case 'PATIENT_ONBOARD': return { color: '#1E3A5F', bg: '#e8ecf1' };
+    case 'IN_PROGRESS':     return { color: '#1E3A5F', bg: '#e8ecf1' };
+    case 'DESTINATION_REACHED': return { color: '#76B82A', bg: '#f1f8eb' };
+    case 'COMPLETED':       return { color: '#76B82A', bg: '#f1f8eb' };
     case 'CANCELLED':
-    case 'FAILED':      return { color: '#dc2626', bg: 'rgba(220,38,38,0.1)',  muiColor: 'error'     as const };
-    default:            return { color: '#64748b', bg: 'rgba(100,116,139,0.1)',muiColor: 'default'   as const };
+    case 'FAILED':          return { color: '#E53935', bg: '#fcebea' };
+    default:                return { color: '#6b7280', bg: '#f3f4f6' };
   }
 };
 
 const getStepIndex = (status: string) => {
-  // Map actual statuses to step indices
   const map: Record<string, number> = {
-    PENDING:     0,
-    ASSIGNED:    2, // vendor + driver both done
-    EN_ROUTE:    3,
-    IN_PROGRESS: 3,
-    ARRIVED:     4,
-    COMPLETED:   5,
-    CANCELLED:   0,
-    FAILED:      0,
+    PENDING:             0,
+    REQUEST_CREATED:     0,
+    SEARCHING_DRIVER:    1,
+    VENDOR_ACCEPTED:     2,
+    ASSIGNED:            3,
+    DRIVER_ASSIGNED:     3,
+    EN_ROUTE:            4,
+    ARRIVED:             5,
+    PATIENT_ONBOARD:     6,
+    IN_PROGRESS:         6,
+    DESTINATION_REACHED: 7,
+    COMPLETED:           8,
+    CANCELLED:           0,
+    FAILED:              0,
   };
   return map[status] ?? 0;
 };
 
-// ─── Types ───────────────────────────────────────────────────────────────────
-
-interface Driver {
-  vendorDriverRef: string;
-  name: string;
-  phoneE164: string;
-  vehicleNumber: string;
-  ambulanceType: string;
-}
-
-interface Location {
-  vendorEventId: string;
-  lat: number;
-  lng: number;
-  speedKmph?: number;
-  headingDeg?: number;
-  capturedAt: string;
-}
-
-interface TrackingData {
-  requestId: string;
-  requestNumber: string;
-  status: string;
-  patientName: string;
-  pickupLat: number;
-  pickupLng: number;
-  dropLat: number;
-  dropLng: number;
-  driver: Driver | null;
-  etaSeconds: number | null;
-  lastLocation: Location | null;
-  updatedAt: string;
-}
-
-// ─── Component ───────────────────────────────────────────────────────────────
+interface Driver { vendorDriverRef: string; name: string; phoneE164: string; vehicleNumber: string; ambulanceType: string; ambulanceNumber?: string; photoUrl?: string; }
+interface Location { vendorEventId: string; lat: number; lng: number; speedKmph?: number; headingDeg?: number; capturedAt: string; }
+interface TrackingData { requestId: string; requestNumber: string; status: string; patientName: string; pickupLat: number; pickupLng: number; pickupAddress: string; dropLat: number; dropLng: number; dropAddress: string; driver: Driver | null; etaSeconds: number | null; lastLocation: Location | null; updatedAt: string; }
 
 export default function TrackingPage() {
   const { requestId } = useParams<{ requestId: string }>();
   const navigate = useNavigate();
 
-  // Connection state
   const [socketConnected, setSocketConnected] = useState(false);
-  const [lastPollAt, setLastPollAt] = useState<Date>(new Date());
-
-  // Live overrides from WebSocket events
   const [liveStatus,   setLiveStatus]   = useState<string | null>(null);
   const [liveEta,      setLiveEta]      = useState<number | null>(null);
   const [liveDriver,   setLiveDriver]   = useState<Driver | null>(null);
   const [liveLocation, setLiveLocation] = useState<Location | null>(null);
-  const [liveUpdatedAt, setLiveUpdatedAt] = useState<Date | null>(null);
 
-  // Cancel dialog
+  const [toastMsg, setToastMsg] = useState('');
   const [cancelOpen,   setCancelOpen]   = useState(false);
-  const [cancelReason, setCancelReason] = useState('PATIENT_RECOVERED');
   const [cancelling,   setCancelling]   = useState(false);
 
-  // Map refs
   const mapContainerRef    = useRef<HTMLDivElement>(null);
   const mapInstance        = useRef<L.Map | null>(null);
   const pickupMarkerRef    = useRef<L.Marker | null>(null);
   const dropMarkerRef      = useRef<L.Marker | null>(null);
   const ambulanceMarkerRef = useRef<L.Marker | null>(null);
   const routeLineRef       = useRef<L.Polyline | null>(null);
-  const socketRef          = useRef<Socket | null>(null);
   const mapInitialized     = useRef(false);
 
-  // ── Polling (primary + fallback) ─────────────────────────────────────────
   const { data: request, isLoading, error, refetch } = useQuery<TrackingData>({
     queryKey: ['tracking', requestId],
     queryFn: async () => {
-      const res = await axios.get(`${API_BASE_URL}/patient/requests/${requestId}/track`);
-      setLastPollAt(new Date());
+      const token = getAuthToken();
+      const endpoint = localStorage.getItem('access_token') 
+        ? `/dispatcher/requests/${requestId}` 
+        : `/patient/requests/${requestId}/track`;
+        
+      const res = await axios.get(`${API_BASE_URL}${endpoint}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
       return res.data;
     },
-    refetchInterval: socketConnected ? false : 5000, // poll every 5s when WS offline
+    refetchInterval: socketConnected ? false : 5000,
     enabled: !!requestId,
-    staleTime: 0,
   });
 
-  // Sync API data → local live state (only if WS hasn't set it yet)
   useEffect(() => {
     if (!request) return;
     setLiveStatus(s   => s   ?? request.status);
     setLiveEta(e      => e   ?? request.etaSeconds);
     setLiveDriver(d   => d   ?? request.driver);
     setLiveLocation(l => l   ?? request.lastLocation);
-    setLiveUpdatedAt(u => u  ?? new Date(request.updatedAt));
   }, [request]);
 
-  // ── WebSocket Layer ───────────────────────────────────────────────────────
+  const showToast = (msg: string) => {
+    setToastMsg(msg);
+  };
+
   useEffect(() => {
     if (!requestId) return;
-
-    const socket: Socket = io(`${API_BASE_URL}/ws`, {
-      transports: ['websocket', 'polling'],
-      auth: { token: 'bypass' },
-      reconnectionAttempts: 10,
-      reconnectionDelay: 1000,
-    });
-
-    socketRef.current = socket;
-
+    // 2. Setup WebSocket for real-time tracking
+    const token = getAuthToken();
+    const socket: Socket = io(`${API_BASE_URL}/ws`, { transports: ['websocket', 'polling'], auth: { token } });
+    
     socket.on('connect', () => {
       setSocketConnected(true);
       socket.emit('subscribe', { requestId });
     });
-
     socket.on('disconnect', () => setSocketConnected(false));
-    socket.on('connect_error', () => setSocketConnected(false));
-
-    // ambulance_assigned → driver + eta + status upgrade
+    
     socket.on('ambulance_assigned', (data: any) => {
-      if (data.driver)      setLiveDriver(data.driver);
+      if (data.driver) setLiveDriver(data.driver);
       if (data.etaSeconds != null) setLiveEta(data.etaSeconds);
       setLiveStatus('ASSIGNED');
-      setLiveUpdatedAt(new Date());
+      showToast('Driver Assigned!');
       refetch();
     });
-
-    // live GPS position stream
+    
     socket.on('location_updated', (pos: Location) => {
       setLiveLocation(pos);
-      setLiveUpdatedAt(new Date());
     });
-
-    // ETA tick from backend
     socket.on('eta_updated', (data: { etaSeconds: number }) => {
       setLiveEta(data.etaSeconds);
-      setLiveUpdatedAt(new Date());
     });
-
-    // Generic status change (EN_ROUTE, ARRIVED, etc.)
     socket.on('status_updated', (data: { status: string }) => {
       setLiveStatus(data.status);
-      setLiveUpdatedAt(new Date());
+      showToast(`Status Updated: ${data.status.replace('_', ' ')}`);
       refetch();
     });
-
-    // Terminal: ride done
     socket.on('ride_completed', () => {
       setLiveStatus('COMPLETED');
       setLiveEta(0);
-      setLiveUpdatedAt(new Date());
+      showToast('Trip completed. Thank you!');
       refetch();
     });
-
-    // Alias events emitted by emitStatusUpdated
-    socket.on('en_route',  () => { setLiveStatus('EN_ROUTE');  setLiveUpdatedAt(new Date()); });
-    socket.on('arrived',   () => { setLiveStatus('ARRIVED');   setLiveUpdatedAt(new Date()); });
-    socket.on('cancelled', () => { setLiveStatus('CANCELLED'); setLiveUpdatedAt(new Date()); refetch(); });
+    socket.on('en_route',  () => { setLiveStatus('EN_ROUTE'); showToast('Ambulance is En Route'); });
+    socket.on('arrived',   () => { setLiveStatus('ARRIVED'); showToast('Driver has arrived'); });
 
     return () => { socket.disconnect(); };
   }, [requestId]);
 
-  // ── Leaflet Map Init (runs once request data arrives) ────────────────────
   useEffect(() => {
     if (!mapContainerRef.current || mapInitialized.current || !request) return;
     mapInitialized.current = true;
-
-    const centerLat = (request.pickupLat + request.dropLat) / 2;
-    const centerLng = (request.pickupLng + request.dropLng) / 2;
-
-    const map = L.map(mapContainerRef.current, {
-      zoomControl: true,
-      attributionControl: false,
-    }).setView([centerLat, centerLng], 13);
-
-    // Dark-mode OSM tiles
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-    }).addTo(map);
-    mapContainerRef.current.classList.add('dark-map');
+    const map = L.map(mapContainerRef.current, { zoomControl: false, attributionControl: false }).setView([(request.pickupLat + request.dropLat) / 2, (request.pickupLng + request.dropLng) / 2], 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
     mapInstance.current = map;
 
-    // Static markers: Pickup (patient) & Drop (hospital)
-    pickupMarkerRef.current = L.marker([request.pickupLat, request.pickupLng], { icon: patientIcon })
-      .addTo(map)
-      .bindPopup(`<b>🧑 Patient Pickup</b><br/>${request.patientName}`);
-
-    dropMarkerRef.current = L.marker([request.dropLat, request.dropLng], { icon: hospitalIcon })
-      .addTo(map)
-      .bindPopup('<b>🏥 Destination Hospital</b>');
-
-    // Dashed baseline route line
-    routeLineRef.current = L.polyline(
-      [[request.pickupLat, request.pickupLng], [request.dropLat, request.dropLng]],
-      { color: '#3b82f6', weight: 3, opacity: 0.5, dashArray: '8, 10' }
-    ).addTo(map);
-
-    // Fit bounds to show both endpoints
-    map.fitBounds([
-      [request.pickupLat, request.pickupLng],
-      [request.dropLat,   request.dropLng],
-    ], { padding: [60, 60] });
+    pickupMarkerRef.current = L.marker([request.pickupLat, request.pickupLng], { icon: patientIcon }).addTo(map);
+    dropMarkerRef.current = L.marker([request.dropLat, request.dropLng], { icon: hospitalIcon }).addTo(map);
+    routeLineRef.current = L.polyline([[request.pickupLat, request.pickupLng], [request.dropLat, request.dropLng]], { color: '#1E3A5F', weight: 4, opacity: 0.6, dashArray: '8, 10' }).addTo(map);
+    map.fitBounds([[request.pickupLat, request.pickupLng], [request.dropLat, request.dropLng]], { padding: [50, 50] });
 
     return () => {
-      if (mapInstance.current) {
-        mapInstance.current.remove();
-        mapInstance.current = null;
-        mapInitialized.current = false;
-      }
+      if (mapInstance.current) { mapInstance.current.remove(); mapInstance.current = null; mapInitialized.current = false; }
     };
   }, [request]);
 
-  // ── Ambulance marker live update ──────────────────────────────────────────
   useEffect(() => {
     const map = mapInstance.current;
     if (!map || !liveLocation?.lat || !liveLocation?.lng) return;
-
     const ambPos: L.LatLngExpression = [liveLocation.lat, liveLocation.lng];
-
     if (!ambulanceMarkerRef.current) {
-      ambulanceMarkerRef.current = L.marker(ambPos, { icon: ambulanceIcon })
-        .addTo(map)
-        .bindPopup('🚑 Ambulance');
+      ambulanceMarkerRef.current = L.marker(ambPos, { icon: ambulanceIcon }).addTo(map);
     } else {
       ambulanceMarkerRef.current.setLatLng(ambPos);
+      
+      // Smooth marker transition hack using CSS
+      const iconElement = ambulanceMarkerRef.current.getElement();
+      if (iconElement) {
+        iconElement.style.transition = 'transform 2s linear';
+      }
     }
-
-    // Update route line: pickup → ambulance → drop (only if we have the request)
     if (request && routeLineRef.current) {
-      routeLineRef.current.setLatLngs([
-        [request.pickupLat, request.pickupLng],
-        ambPos,
-        [request.dropLat,   request.dropLng],
-      ]);
-    }
-
-    // Re-fit bounds to keep all three points visible
-    if (request) {
-      map.fitBounds([
-        [request.pickupLat, request.pickupLng],
-        ambPos,
-        [request.dropLat,   request.dropLng],
-      ], { padding: [50, 50], maxZoom: 16 });
+      // Draw route from ambulance to destination
+      routeLineRef.current.setLatLngs([ambPos, [request.dropLat, request.dropLng]]);
+      // Fit bounds to keep pickup, drop, and ambulance visible
+      map.fitBounds([[request.pickupLat, request.pickupLng], ambPos, [request.dropLat, request.dropLng]], { padding: [50, 50], maxZoom: 16 });
     }
   }, [liveLocation, request]);
-
-  // ── Helpers ───────────────────────────────────────────────────────────────
-
-  const formatEta = (seconds: number | null) => {
-    if (seconds === null) return { label: 'Calculating…', sublabel: '' };
-    if (seconds <= 0)     return { label: 'Arrived',       sublabel: 'Ambulance is here' };
-    const mins = Math.ceil(seconds / 60);
-    return { label: `${mins} min${mins > 1 ? 's' : ''}`, sublabel: `≈ ${seconds}s remaining` };
-  };
-
-  const formatTimestamp = (date: Date | string | null) => {
-    if (!date) return '—';
-    const d = typeof date === 'string' ? new Date(date) : date;
-    return d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-  };
-
-  const formatAmbulanceType = (type: string) => {
-    const map: Record<string, string> = {
-      als: 'Advanced Life Support (ALS)',
-      bls: 'Basic Life Support (BLS)',
-      icu: 'Mobile ICU',
-      neonatal: 'Neonatal ICU',
-    };
-    return map[type?.toLowerCase()] ?? type?.toUpperCase() ?? 'ALS';
-  };
 
   const handleCancelSubmit = useCallback(async () => {
     if (!requestId) return;
@@ -400,459 +264,220 @@ export default function TrackingPage() {
       setLiveStatus('CANCELLED');
       setCancelOpen(false);
       refetch();
-    } catch (err) {
-      console.error('Cancellation failed:', err);
-    } finally {
-      setCancelling(false);
-    }
+    } catch (err) {} finally { setCancelling(false); }
   }, [requestId, refetch]);
 
-  // ── Derived display values ────────────────────────────────────────────────
-  const effectiveStatus   = liveStatus   ?? request?.status   ?? 'PENDING';
-  const effectiveEta      = liveEta      ?? request?.etaSeconds ?? null;
-  const effectiveDriver   = liveDriver   ?? request?.driver   ?? null;
-  const effectiveLocation = liveLocation ?? request?.lastLocation ?? null;
-  const effectiveUpdatedAt = liveUpdatedAt ?? (request?.updatedAt ? new Date(request.updatedAt) : null);
+  if (isLoading && !request) return <Box sx={{ display: 'flex', justifyContent: 'center', mt: 10 }}><CircularProgress /></Box>;
+  if (error || !request) return <Container maxWidth="sm" sx={{ mt: 8 }}><Alert severity="error">Could not load tracking data.</Alert></Container>;
 
-  const { color: statusColor, bg: statusBg } = getStatusMeta(effectiveStatus);
+  const effectiveStatus   = liveStatus   ?? request.status;
+  const effectiveEta      = liveEta      ?? request.etaSeconds ?? null;
+  const effectiveDriver   = liveDriver   ?? request.driver   ?? null;
   const currentStep  = getStepIndex(effectiveStatus);
   const isTerminal   = TERMINAL_STATUSES.includes(effectiveStatus);
-  const { label: etaLabel, sublabel: etaSublabel } = formatEta(effectiveEta);
+  const { color: statusColor, bg: statusBg } = getStatusMeta(effectiveStatus);
 
-  // ── Render: Loading ───────────────────────────────────────────────────────
-  if (isLoading && !request) {
-    return (
-      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '70vh', gap: 2 }}>
-        <CircularProgress size={56} sx={{ color: '#6ba539' }} />
-        <Typography variant="h6" color="text.secondary">Loading tracking data…</Typography>
-      </Box>
-    );
-  }
+  const getEtaLabel = () => {
+    if (effectiveEta === null) return 'Calculated shortly';
+    if (effectiveEta <= 0) return 'Arrived';
+    const mins = Math.ceil(effectiveEta / 60);
+    return `${mins} min`;
+  };
 
-  // ── Render: Error ─────────────────────────────────────────────────────────
-  if (error || !request) {
-    return (
-      <Container maxWidth="sm" sx={{ mt: 8 }}>
-        <Alert severity="error" variant="filled" sx={{ borderRadius: 2, mb: 2 }}>
-          Could not load tracking data for request <strong>{requestId}</strong>. Please check the URL and try again.
-        </Alert>
-        <Button startIcon={<ArrowBackIcon />} onClick={() => navigate('/')} variant="outlined">
-          Back to Booking
-        </Button>
-      </Container>
-    );
-  }
-
-  // ── Render: Main ──────────────────────────────────────────────────────────
   return (
-    <Container maxWidth="xl" sx={{ pb: 6 }}>
-
-      {/* ── Top Header ── */}
-      <Card className="glass-panel" sx={{ mb: 3, px: 3, py: 2 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <IconButton onClick={() => navigate('/')} size="small" sx={{ color: 'text.secondary' }}>
-              <ArrowBackIcon />
-            </IconButton>
+    <Box sx={{ pb: 6 }}>
+      
+      {/* ── Top Info / Status Hero ── */}
+      <Box sx={{ bgcolor: '#ffffff', pt: 3, pb: 4, borderBottom: '1px solid #e5e7eb', mb: 3 }}>
+        <Container maxWidth="xl">
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 2 }}>
             <Box>
-              <Typography variant="h6" sx={{ fontWeight: 800, lineHeight: 1.2 }}>
-                Live Ambulance Tracking
+              <Button startIcon={<ArrowBackIcon />} onClick={() => navigate('/')} sx={{ mb: 1, color: '#6b7280' }}>Back to Booking</Button>
+              <Typography variant="h3" sx={{ fontWeight: 900, color: '#1E3A5F', mb: 1 }}>
+                Ambulance On The Way
               </Typography>
-              <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'monospace', letterSpacing: 0.5 }}>
-                {request.requestNumber} &bull; ID: {requestId?.slice(0, 8)}…
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <Chip 
+                  label={effectiveStatus.replace('_', ' ')}
+                  sx={{ bgcolor: statusBg, color: statusColor, fontWeight: 800, fontSize: '0.9rem', borderRadius: '16px' }} 
+                />
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: socketConnected ? '#76B82A' : '#F4B400' }}>
+                  {socketConnected ? <WifiIcon fontSize="small" /> : <WifiOffIcon fontSize="small" />}
+                  <Typography variant="caption" sx={{ fontWeight: 600 }}>{socketConnected ? 'Live' : 'Offline'}</Typography>
+                </Box>
+              </Box>
+            </Box>
+
+            {/* ETA Countdown */}
+            <Box sx={{ textAlign: 'right' }}>
+              <Typography variant="subtitle1" sx={{ color: '#6b7280', fontWeight: 600, textTransform: 'uppercase' }}>Estimated Arrival</Typography>
+              <Typography variant="h1" sx={{ fontWeight: 900, color: statusColor, lineHeight: 1 }}>
+                {getEtaLabel()}
               </Typography>
             </Box>
           </Box>
 
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-            {/* Connection badge */}
-            <Tooltip title={socketConnected ? 'Live WebSocket connected' : `HTTP polling every 5s • Last: ${formatTimestamp(lastPollAt)}`}>
-              <Chip
-                icon={socketConnected ? <WifiIcon sx={{ fontSize: '0.9rem !important' }} /> : <WifiOffIcon sx={{ fontSize: '0.9rem !important' }} />}
-                label={socketConnected ? 'Live' : 'Polling'}
-                size="small"
-                sx={{
-                  bgcolor: socketConnected ? 'rgba(107,165,57,0.15)' : 'rgba(245,158,11,0.15)',
-                  color:   socketConnected ? '#6ba539' : '#f59e0b',
-                  border:  `1px solid ${socketConnected ? 'rgba(107,165,57,0.4)' : 'rgba(245,158,11,0.4)'}`,
-                  fontWeight: 700,
-                }}
-              />
-            </Tooltip>
-
-            {/* Status badge */}
-            <Chip
-              label={effectiveStatus.replace('_', ' ')}
-              sx={{
-                bgcolor: statusBg,
-                color:   statusColor,
-                border:  `1px solid ${statusColor}44`,
-                fontWeight: 800,
-                fontSize: '0.85rem',
-                px: 0.5,
-              }}
-            />
-
-            {/* Manual refresh */}
-            <Tooltip title="Refresh now">
-              <IconButton size="small" onClick={() => refetch()} sx={{ color: 'text.secondary' }}>
-                <RefreshIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
-
-            {/* Cancel button */}
-            {!isTerminal && (
-              <Button
-                variant="outlined"
-                color="error"
-                size="small"
-                startIcon={<CancelIcon />}
-                onClick={() => setCancelOpen(true)}
-                sx={{ borderColor: 'rgba(239,68,68,0.4)', '&:hover': { borderColor: '#ef4444', bgcolor: 'rgba(239,68,68,0.08)' } }}
-              >
-                Cancel
-              </Button>
-            )}
-          </Box>
-        </Box>
-      </Card>
-
-      {/* ── Status Timeline Stepper ── */}
-      <Card className="glass-panel" sx={{ mb: 3, px: 3, py: 2.5 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative' }}>
-          {/* Connector line behind steps */}
-          <Box sx={{
-            position: 'absolute', top: '50%', left: '5%', right: '5%', height: 3,
-            background: 'rgba(255,255,255,0.06)', borderRadius: 2, zIndex: 0,
-            transform: 'translateY(-50%)',
-          }} />
-          {/* Filled connector showing progress */}
-          <Box sx={{
-            position: 'absolute', top: '50%', left: '5%',
-            width: `${Math.min((currentStep / (STATUS_STEPS.length - 1)) * 90, 90)}%`,
-            height: 3, borderRadius: 2, zIndex: 1,
-            transform: 'translateY(-50%)',
-            background: `linear-gradient(90deg, ${statusColor}, ${statusColor}88)`,
-            transition: 'width 0.6s ease',
-          }} />
-
-          {STATUS_STEPS.map((step, idx) => {
-            const isActive    = idx === currentStep && !isTerminal;
-            const isCompleted = idx < currentStep || effectiveStatus === 'COMPLETED';
-            const isCancelled = effectiveStatus === 'CANCELLED' || effectiveStatus === 'FAILED';
-
-            return (
-              <Box key={step.key} sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: 2, flex: 1 }}>
-                <Tooltip title={step.label}>
+          {/* ── Patient Progress Timeline ── */}
+          <Box sx={{ mt: 5, display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative' }}>
+            <Box sx={{ position: 'absolute', top: '35%', left: '5%', right: '5%', height: 4, bgcolor: '#f3f4f6', borderRadius: 2, zIndex: 0 }} />
+            <Box sx={{ position: 'absolute', top: '35%', left: '5%', width: `${Math.min((currentStep / (STATUS_STEPS.length - 1)) * 90, 90)}%`, height: 4, bgcolor: statusColor, borderRadius: 2, zIndex: 1, transition: 'width 0.6s ease' }} />
+            {STATUS_STEPS.map((step, idx) => {
+              const isActive = idx === currentStep && !isTerminal;
+              const isCompleted = idx < currentStep || effectiveStatus === 'COMPLETED';
+              return (
+                <Box key={step.key} sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: 2, flex: 1 }}>
                   <Box sx={{
-                    width: { xs: 32, sm: 40 }, height: { xs: 32, sm: 40 }, borderRadius: '50%',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: isActive ? '1.1rem' : '0.9rem',
-                    border: `2.5px solid ${isCompleted ? step.color : isActive ? step.color : '#e2e8f0'}`,
-                    bgcolor: isCompleted ? `${step.color}22` : isActive ? `${step.color}33` : '#fff',
-                    boxShadow: isActive ? `0 0 12px ${step.color}88` : 'none',
-                    transition: 'all 0.4s ease',
-                    position: 'relative',
-                    cursor: 'default',
+                    width: { xs: 32, sm: 48 }, height: { xs: 32, sm: 48 }, borderRadius: '50%',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem',
+                    bgcolor: isCompleted ? step.color : isActive ? step.color : '#ffffff',
+                    border: `3px solid ${isCompleted ? step.color : isActive ? step.color : '#e5e7eb'}`,
+                    color: isCompleted || isActive ? '#fff' : '#d1d5db',
+                    boxShadow: isActive ? `0 0 0 6px ${step.color}33` : 'none',
+                    transition: 'all 0.3s ease'
                   }}>
-                    {isCompleted ? (
-                      <CheckCircleIcon sx={{ color: step.color, fontSize: { xs: '0.9rem', sm: '1.1rem' } }} />
-                    ) : isActive ? (
-                      <Box sx={{ fontSize: { xs: '0.9rem', sm: '1rem' } }}>{step.icon}</Box>
-                    ) : isCancelled && idx > currentStep ? (
-                      <RadioButtonUncheckedIcon sx={{ color: '#d1d5db', fontSize: '0.9rem' }} />
-                    ) : (
-                      <HourglassEmptyIcon sx={{ color: '#d1d5db', fontSize: '0.85rem' }} />
-                    )}
-                    {isActive && (
-                      <Box sx={{
-                        position: 'absolute', inset: -4, borderRadius: '50%',
-                        border: `2px solid ${step.color}`,
-                        animation: 'pulsate 1.5s ease-out infinite',
-                      }} />
-                    )}
+                    {isCompleted ? <CheckCircleIcon sx={{ fontSize: '1.4rem' }} /> : step.icon}
                   </Box>
-                </Tooltip>
-                <Typography
-                  variant="caption"
-                  sx={{
-                    mt: 0.8,
-                    fontWeight: isActive ? 800 : isCompleted ? 600 : 400,
-                    color: isActive ? step.color : isCompleted ? '#475569' : '#d1d5db',
-                    fontSize: '0.62rem',
-                    display: { xs: 'none', sm: 'block' },
-                    textAlign: 'center',
-                    lineHeight: 1.2,
-                    maxWidth: 72,
-                  }}
-                >
-                  {step.label}
-                </Typography>
-              </Box>
-            );
-          })}
-
-          {/* CANCELLED / FAILED override badge */}
-          {(effectiveStatus === 'CANCELLED' || effectiveStatus === 'FAILED') && (
-            <Chip
-              label={effectiveStatus}
-              sx={{
-                position: 'absolute', right: -8, top: -8,
-                bgcolor: 'rgba(239,68,68,0.2)', color: '#ef4444',
-                border: '1px solid rgba(239,68,68,0.4)', fontWeight: 800, fontSize: '0.75rem',
-              }}
-            />
-          )}
-        </Box>
-      </Card>
-
-      {/* ── Main Content Grid ── */}
-      <Grid container spacing={3}>
-
-        {/* ── Map Column ── */}
-        <Grid size={{ xs: 12, lg: 8 }}>
-          <Card className="glass-panel" sx={{ height: { xs: 380, md: 560 }, p: 1.5, position: 'relative' }}>
-            <div ref={mapContainerRef} style={{ width: '100%', height: '100%', borderRadius: 10 }} />
-
-            {/* Map Legend */}
-            <Box sx={{
-              position: 'absolute', bottom: 20, left: 20,
-              bgcolor: 'rgba(7,10,19,0.85)', backdropFilter: 'blur(8px)',
-              border: '1px solid rgba(255,255,255,0.1)', borderRadius: 2,
-              px: 1.5, py: 1, display: 'flex', flexDirection: 'column', gap: 0.6, zIndex: 1000,
-            }}>
-              <LegendItem color="#6ba539" emoji="🧑" label={`Pickup · ${request.patientName}`} />
-              <LegendItem color="#ef4444" emoji="🏥" label="Destination Hospital" />
-              {effectiveLocation && <LegendItem color="#3b82f6" emoji="🚑" label="Ambulance (Live)" />}
-            </Box>
-
-            {/* Ambulance speed overlay */}
-            {effectiveLocation?.speedKmph != null && (
-              <Box sx={{
-                position: 'absolute', top: 20, right: 20,
-                bgcolor: 'rgba(7,10,19,0.85)', backdropFilter: 'blur(8px)',
-                border: '1px solid rgba(59,130,246,0.3)', borderRadius: 2,
-                px: 2, py: 1, display: 'flex', alignItems: 'center', gap: 1, zIndex: 1000,
-              }}>
-                <SpeedIcon sx={{ color: '#3b82f6', fontSize: '1.1rem' }} />
-                <Typography variant="body2" sx={{ fontWeight: 700, color: '#3b82f6' }}>
-                  {effectiveLocation.speedKmph} km/h
-                </Typography>
-              </Box>
-            )}
-          </Card>
-        </Grid>
-
-        {/* ── Info Column ── */}
-        <Grid size={{ xs: 12, lg: 4 }}>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, height: '100%' }}>
-
-            {/* ETA Card */}
-            <Card sx={{
-              background: `linear-gradient(135deg, rgba(15,23,42,0.9) 0%, ${statusBg} 100%)`,
-              border: `1px solid ${statusColor}44`,
-              boxShadow: `0 8px 32px ${statusColor}22`,
-              backdropFilter: 'blur(16px)',
-            }}>
-              <CardContent sx={{ textAlign: 'center', py: 3.5 }}>
-                <AccessTimeIcon sx={{ fontSize: 44, color: statusColor, mb: 1 }} />
-                <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600, mb: 0.5, textTransform: 'uppercase', letterSpacing: 1 }}>
-                  Estimated Arrival
-                </Typography>
-                <Typography variant="h2" sx={{ fontWeight: 900, color: '#fff', lineHeight: 1.1, mb: 0.5 }}>
-                  {etaLabel}
-                </Typography>
-                {etaSublabel && (
-                  <Typography variant="caption" color="text.secondary">{etaSublabel}</Typography>
-                )}
-                <Divider sx={{ my: 2, borderColor: 'rgba(255,255,255,0.06)' }} />
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Typography variant="caption" color="text.secondary">Last Updated</Typography>
-                  <Typography variant="caption" sx={{ fontWeight: 700, color: '#94a3b8', fontFamily: 'monospace' }}>
-                    {formatTimestamp(effectiveUpdatedAt)}
+                  <Typography variant="caption" sx={{ mt: 1.5, fontWeight: isActive ? 800 : 600, color: isActive ? step.color : isCompleted ? '#4b5563' : '#9ca3af', display: { xs: 'none', sm: 'block' }, textAlign: 'center' }}>
+                    {step.label}
                   </Typography>
                 </Box>
-              </CardContent>
-            </Card>
-
-            {/* Driver Card */}
-            <Card className="glass-panel" sx={{ flex: 1 }}>
-              <CardContent sx={{ p: 2.5 }}>
-                <Typography variant="subtitle1" sx={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-                  <DirectionsCarIcon sx={{ color: '#3b82f6' }} />
-                  Driver & Vehicle
-                </Typography>
-
-                {effectiveDriver ? (
-                  <Box>
-                    {/* Driver avatar + name */}
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2.5 }}>
-                      <Avatar sx={{
-                        width: 54, height: 54,
-                        background: 'linear-gradient(135deg,#6ba539,#4f8524)',
-                        fontSize: '1.3rem', fontWeight: 800,
-                        boxShadow: '0 4px 12px rgba(107,165,57,0.4)',
-                      }}>
-                        {effectiveDriver.name?.charAt(0)?.toUpperCase()}
-                      </Avatar>
-                      <Box>
-                        <Typography variant="h6" sx={{ fontWeight: 800, lineHeight: 1.2 }}>
-                          {effectiveDriver.name}
-                        </Typography>
-                        <Typography variant="caption" sx={{
-                          color: '#6ba539', fontWeight: 600,
-                          background: 'rgba(107,165,57,0.1)', px: 1, py: 0.3,
-                          borderRadius: 1, border: '1px solid rgba(107,165,57,0.2)',
-                        }}>
-                          {formatAmbulanceType(effectiveDriver.ambulanceType)}
-                        </Typography>
-                      </Box>
-                    </Box>
-
-                    <Divider sx={{ mb: 2, borderColor: 'rgba(255,255,255,0.05)' }} />
-
-                    {/* Detail rows */}
-                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-                      <DriverRow icon={<BadgeIcon fontSize="small" sx={{ color: '#94a3b8' }} />}
-                        label="Vehicle No." value={effectiveDriver.vehicleNumber} />
-                      <DriverRow icon={<PersonIcon fontSize="small" sx={{ color: '#94a3b8' }} />}
-                        label="Driver Ref" value={effectiveDriver.vendorDriverRef} mono />
-                      {effectiveLocation?.headingDeg != null && (
-                        <DriverRow icon={<NavigationIcon fontSize="small" sx={{ color: '#94a3b8' }} />}
-                          label="Heading" value={`${effectiveLocation.headingDeg}°`} />
-                      )}
-                    </Box>
-
-                    <Divider sx={{ my: 2, borderColor: 'rgba(255,255,255,0.05)' }} />
-
-                    {/* Call button */}
-                    <Button
-                      fullWidth
-                      variant="contained"
-                      startIcon={<PhoneIcon />}
-                      href={`tel:${effectiveDriver.phoneE164}`}
-                      sx={{
-                        background: 'linear-gradient(90deg,#6ba539,#4f8524)',
-                        fontWeight: 700,
-                        boxShadow: '0 4px 12px rgba(107,165,57,0.3)',
-                        '&:hover': { boxShadow: '0 6px 18px rgba(107,165,57,0.4)' },
-                      }}
-                    >
-                      Call Driver · {effectiveDriver.phoneE164}
-                    </Button>
-                  </Box>
-                ) : (
-                  <Box sx={{ textAlign: 'center', py: 4 }}>
-                    <CircularProgress size={36} sx={{ color: '#3b82f6', mb: 2 }} />
-                    <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600 }}>
-                      Waiting for driver assignment…
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
-                      Our dispatch system is routing the nearest unit
-                    </Typography>
-                  </Box>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Request Details Card */}
-            <Card className="glass-panel">
-              <CardContent sx={{ p: 2.5 }}>
-                <Typography variant="subtitle2" sx={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
-                  <LocalHospitalIcon sx={{ color: '#6ba539', fontSize: '1.1rem' }} />
-                  Request Info
-                </Typography>
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                  <InfoRow label="Patient"  value={request.patientName} />
-                  <InfoRow label="Ref No."  value={request.requestNumber} mono />
-                  <InfoRow label="Pickup"   value={`${request.pickupLat.toFixed(4)}, ${request.pickupLng.toFixed(4)}`} mono />
-                  <InfoRow label="Drop"     value={`${request.dropLat.toFixed(4)}, ${request.dropLng.toFixed(4)}`} mono />
-                  {effectiveLocation?.capturedAt && (
-                    <InfoRow label="GPS Time" value={formatTimestamp(effectiveLocation.capturedAt)} mono />
-                  )}
-                </Box>
-              </CardContent>
-            </Card>
+              );
+            })}
           </Box>
-        </Grid>
-      </Grid>
+        </Container>
+      </Box>
 
-      {/* ── Cancel Dialog ── */}
-      <Dialog
-        open={cancelOpen}
-        onClose={() => setCancelOpen(false)}
-        slotProps={{ paper: { sx: { bgcolor: 'rgba(10,15,30,0.97)', backdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 3, minWidth: 360 } } }}
+      {/* ── Main Layout (Map + Driver Card) ── */}
+      <Container maxWidth="xl">
+        <Grid container spacing={4}>
+          
+          {/* Map Section */}
+          <Grid size={{ xs: 12, lg: 8 }}>
+            <Card sx={{ height: { xs: 400, md: 500 }, borderRadius: '24px', overflow: 'hidden', boxShadow: '0 12px 32px rgba(30,58,95,0.06)' }}>
+              <div ref={mapContainerRef} style={{ width: '100%', height: '100%' }} />
+            </Card>
+          </Grid>
+
+          {/* Right Side Info */}
+          <Grid size={{ xs: 12, lg: 4 }}>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+              
+              {/* Driver Card */}
+              <Card sx={{ borderRadius: '24px', boxShadow: '0 8px 24px rgba(30,58,95,0.06)', p: 1 }}>
+                <CardContent>
+                  <Typography variant="h6" sx={{ fontWeight: 800, color: '#1E3A5F', mb: 3 }}>Driver Details</Typography>
+                  {effectiveDriver ? (
+                    <Box>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
+                        <Avatar src={effectiveDriver.photoUrl} sx={{ width: 64, height: 64, bgcolor: '#f0f4f8', color: '#1E3A5F' }}>
+                          {!effectiveDriver.photoUrl && <PersonIcon sx={{ fontSize: 40 }} />}
+                        </Avatar>
+                        <Box>
+                          <Typography variant="h5" sx={{ fontWeight: 800, color: '#1F2937' }}>{effectiveDriver.name}</Typography>
+                          <Typography variant="subtitle1" sx={{ color: '#1F2937', fontWeight: 900, mt: 0.5, mb: 0.5, display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <Box component="span" sx={{ bgcolor: '#F4B400', color: '#000', px: 1.5, py: 0.5, borderRadius: 1, border: '1px solid #000' }}>
+                              {effectiveDriver.vehicleNumber}
+                            </Box>
+                            {effectiveDriver.ambulanceNumber && (
+                              <Chip label={effectiveDriver.ambulanceNumber} size="small" sx={{ fontWeight: 800, bgcolor: '#1E3A5F', color: '#fff', borderRadius: '8px' }} />
+                            )}
+                          </Typography>
+                          <Typography variant="subtitle2" sx={{ color: '#6b7280', fontWeight: 600 }}>
+                            {effectiveDriver.ambulanceType === 'BLS' ? 'Standard Ambulance' : effectiveDriver.ambulanceType === 'ALS' ? 'Emergency Ambulance' : effectiveDriver.ambulanceType === 'ICU' ? 'Critical Care Ambulance' : effectiveDriver.ambulanceType}
+                          </Typography>
+                          <Typography variant="body2" sx={{ color: '#4b5563', fontWeight: 600, mt: 0.5 }}>
+                            {effectiveDriver.phoneE164}
+                          </Typography>
+                        </Box>
+                      </Box>
+                      
+                      {/* Driver Speed & ETA row */}
+                      <Grid container spacing={2} sx={{ mb: 3 }}>
+                        <Grid size={{ xs: 6 }}>
+                          <Box sx={{ p: 1.5, bgcolor: '#f8fafc', borderRadius: 2, border: '1px solid #e2e8f0' }}>
+                            <Typography variant="caption" sx={{ color: '#64748b', display: 'block', mb: 0.5 }}>Current Speed</Typography>
+                            <Typography variant="body1" sx={{ fontWeight: 800, color: '#0f172a' }}>
+                              {liveLocation?.speedKmph ? Math.round(liveLocation.speedKmph) : '--'} km/h
+                            </Typography>
+                          </Box>
+                        </Grid>
+                        <Grid size={{ xs: 6 }}>
+                          <Box sx={{ p: 1.5, bgcolor: '#f8fafc', borderRadius: 2, border: '1px solid #e2e8f0' }}>
+                            <Typography variant="caption" sx={{ color: '#64748b', display: 'block', mb: 0.5 }}>ETA</Typography>
+                            <Typography variant="body1" sx={{ fontWeight: 800, color: '#059669' }}>
+                              {getEtaLabel()}
+                            </Typography>
+                          </Box>
+                        </Grid>
+                      </Grid>
+                      <Button
+                        fullWidth variant="contained" size="large" startIcon={<PhoneIcon />} href={`tel:${effectiveDriver.phoneE164}`}
+                        sx={{ bgcolor: '#76B82A', '&:hover': { bgcolor: '#5b961f' }, borderRadius: '30px', py: 1.5, fontSize: '1.1rem', mb: 2 }}
+                      >
+                        Call Driver
+                      </Button>
+                      <Button 
+                        fullWidth variant="outlined" startIcon={<LocationOnIcon />} 
+                        onClick={() => {
+                          if (mapInstance.current && liveLocation) {
+                            mapInstance.current.setView([liveLocation.lat, liveLocation.lng], 16, { animate: true });
+                          }
+                        }}
+                        sx={{ borderRadius: '30px', py: 1.2, color: '#1E3A5F', borderColor: '#1E3A5F' }}
+                      >
+                        Live Location
+                      </Button>
+                    </Box>
+                  ) : (
+                    <Box sx={{ textAlign: 'center', py: 4 }}>
+                      <CircularProgress size={40} sx={{ color: '#1E3A5F', mb: 2 }} />
+                      <Typography variant="subtitle1" sx={{ color: '#4b5563', fontWeight: 600 }}>Assigning nearest ambulance...</Typography>
+                    </Box>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Action Buttons */}
+              <Card sx={{ borderRadius: '24px', boxShadow: 'none', border: '1px solid #e5e7eb', bgcolor: '#F7F8FA', p: 1 }}>
+                <CardContent sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <Button variant="contained" color="secondary" size="large" sx={{ borderRadius: '30px', py: 1.5 }}>
+                    Emergency Support
+                  </Button>
+                  {!isTerminal && (
+                    <Button variant="text" color="error" onClick={() => setCancelOpen(true)} sx={{ fontWeight: 700 }}>
+                      Cancel Request
+                    </Button>
+                  )}
+                </CardContent>
+              </Card>
+            </Box>
+          </Grid>
+        </Grid>
+      </Container>
+
+      {/* Toasts */}
+      <Snackbar
+        open={!!toastMsg} autoHideDuration={3000} onClose={() => setToastMsg('')}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       >
-        <DialogTitle sx={{ fontWeight: 800, pb: 0 }}>Cancel Ambulance Request</DialogTitle>
-        <DialogContent sx={{ pt: 2 }}>
-          <Alert severity="warning" sx={{ mb: 2.5, borderRadius: 2, bgcolor: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)' }}>
-            Are you sure? This action cannot be undone.
-          </Alert>
-          <TextField
-            fullWidth select label="Cancellation Reason"
-            value={cancelReason}
-            onChange={(e) => setCancelReason(e.target.value)}
-            variant="outlined"
-          >
-            <MenuItem value="PATIENT_RECOVERED">Patient recovered / no longer required</MenuItem>
-            <MenuItem value="DELAYED_ARRIVAL">Ambulance delay is too long</MenuItem>
-            <MenuItem value="OTHER_TRANSPORT">Found alternative transport</MenuItem>
-            <MenuItem value="INCORRECT_ADDRESS">Address / details entered incorrectly</MenuItem>
-            <MenuItem value="OTHER">Other reason</MenuItem>
+        <Alert severity="info" icon={false} sx={{ bgcolor: '#1E3A5F', color: '#fff', borderRadius: '12px', fontWeight: 600, fontSize: '1rem' }}>
+          {toastMsg}
+        </Alert>
+      </Snackbar>
+
+      <Dialog open={cancelOpen} onClose={() => setCancelOpen(false)} slotProps={{ paper: { sx: { borderRadius: '24px', p: 1 } } }}>
+        <DialogTitle sx={{ fontWeight: 800 }}>Cancel Ambulance Request</DialogTitle>
+        <DialogContent>
+          <Alert severity="warning" sx={{ mb: 3, borderRadius: '12px' }}>This action cannot be undone.</Alert>
+          <TextField fullWidth select label="Cancellation Reason" value={cancelling ? '' : 'PATIENT_RECOVERED'} onChange={() => {}}>
+            <MenuItem value="PATIENT_RECOVERED">Patient recovered</MenuItem>
           </TextField>
         </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 3, gap: 1 }}>
-          <Button onClick={() => setCancelOpen(false)} color="inherit" variant="outlined" disabled={cancelling}>
-            Dismiss
-          </Button>
-          <Button
-            onClick={handleCancelSubmit}
-            color="error" variant="contained"
-            disabled={cancelling}
-            startIcon={cancelling ? <CircularProgress size={16} color="inherit" /> : <CancelIcon />}
-          >
-            {cancelling ? 'Cancelling…' : 'Confirm Cancel'}
-          </Button>
+        <DialogActions sx={{ px: 3, pb: 3 }}>
+          <Button onClick={() => setCancelOpen(false)} color="inherit" sx={{ fontWeight: 600 }}>Dismiss</Button>
+          <Button onClick={handleCancelSubmit} color="error" variant="contained" sx={{ borderRadius: '20px' }}>Confirm Cancel</Button>
         </DialogActions>
       </Dialog>
-    </Container>
-  );
-}
-
-// ─── Sub-components ──────────────────────────────────────────────────────────
-
-function LegendItem({ color, emoji, label }: { color: string; emoji: string; label: string }) {
-  return (
-    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-      <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: color, flexShrink: 0 }} />
-      <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.7)', fontWeight: 500, whiteSpace: 'nowrap' }}>
-        {emoji} {label}
-      </Typography>
-    </Box>
-  );
-}
-
-function DriverRow({ icon, label, value, mono }: { icon: React.ReactNode; label: string; value: string; mono?: boolean }) {
-  return (
-    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-      {icon}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', flex: 1, alignItems: 'center' }}>
-        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500 }}>{label}</Typography>
-        <Typography variant="body2" sx={{ fontWeight: 700, fontFamily: mono ? 'monospace' : 'inherit', color: '#f1f5f9' }}>
-          {value}
-        </Typography>
-      </Box>
-    </Box>
-  );
-}
-
-function InfoRow({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
-  return (
-    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-      <Typography variant="caption" color="text.secondary">{label}</Typography>
-      <Typography variant="caption" sx={{ fontWeight: 600, fontFamily: mono ? 'monospace' : 'inherit', color: '#cbd5e1' }}>
-        {value}
-      </Typography>
     </Box>
   );
 }

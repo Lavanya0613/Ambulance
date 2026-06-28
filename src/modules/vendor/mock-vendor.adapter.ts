@@ -49,18 +49,21 @@ export class MockVendorAdapter implements AmbulanceVendor, OnModuleInit {
 
     const vendorBookingRef = `MOCK-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 
+    const vendorDriverRef = `DRV-${Math.floor(Math.random() * 9000) + 1000}`;
     const driver = {
-      vendorDriverRef: `DRV-${Math.floor(Math.random() * 9000) + 1000}`,
+      vendorDriverRef,
       name: 'Ravi Kumar',
       phoneE164: '+919999998888',
       vehicleNumber: `MO-01-${Math.floor(Math.random() * 9000) + 1000}`,
-      ambulanceType: 'als',
+      ambulanceType: 'ALS',
+      ambulanceNumber: `AMB-${Math.floor(Math.random() * 900) + 100}`,
+      photoUrl: `https://i.pravatar.cc/150?u=${vendorDriverRef}`,
     };
 
     const booking: VendorBooking = {
       vendorBookingRef,
       requestId: req.requestId,
-      status: 'ASSIGNED',
+      status: 'SEARCHING_DRIVER',
       driver,
       etaSeconds: 600,
     };
@@ -69,7 +72,7 @@ export class MockVendorAdapter implements AmbulanceVendor, OnModuleInit {
     this.positions.set(vendorBookingRef, []);
     if (req.idempotencyKey) this.idempotency.set(req.idempotencyKey, vendorBookingRef);
 
-    this.scheduleLifecycle(req, vendorBookingRef);
+    this.startSimulation(req, vendorBookingRef);
 
     return {
       vendorBookingRef,
@@ -100,61 +103,147 @@ export class MockVendorAdapter implements AmbulanceVendor, OnModuleInit {
     return all.filter((p) => p.capturedAt > since);
   }
 
-  private scheduleLifecycle(req: CreateBookingRequest, vendorBookingRef: string) {
-    const checkpoints = [
-      {
-        delayMs: 1000,
-        status: 'EN_ROUTE',
-        latOffset: 0.001,
-        lngOffset: 0.001,
-        etaSeconds: 480,
-      },
-      {
-        delayMs: 3000,
-        status: 'ARRIVED',
-        latOffset: 0.0005,
-        lngOffset: 0.0005,
-        etaSeconds: 240,
-      },
-      {
-        delayMs: 5000,
-        status: 'IN_PROGRESS',
-        latOffset: 0.0002,
-        lngOffset: 0.0002,
-        etaSeconds: 120,
-      },
-      {
-        delayMs: 8000,
-        status: 'COMPLETED',
-        latOffset: 0,
-        lngOffset: 0,
-        etaSeconds: 0,
-      },
-    ];
+  private startSimulation(req: CreateBookingRequest, vendorBookingRef: string) {
+    const TICK_MS = 2000;
+    const SPEED_KMPH_TO_PICKUP = 60; // Make it fast for simulation
+    const SPEED_KMPH_TO_DROP = 40;
 
-    checkpoints.forEach((checkpoint) => {
-      setTimeout(() => {
-        const current = this.bookings.get(vendorBookingRef);
-        if (!current) return;
-        if (current.status === 'CANCELLED') return;
+    const getDistanceFromLatLonInKm = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+      const R = 6371; // Radius of the earth in km
+      const dLat = (lat2 - lat1) * (Math.PI / 180);
+      const dLon = (lon2 - lon1) * (Math.PI / 180);
+      const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      return R * c;
+    };
 
-        current.status = checkpoint.status;
-        current.etaSeconds = checkpoint.etaSeconds;
-        current.driver = current.driver;
-        this.bookings.set(vendorBookingRef, current);
+    const getHeading = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+      const dLon = (lon2 - lon1) * (Math.PI / 180);
+      const y = Math.sin(dLon) * Math.cos(lat2 * (Math.PI / 180));
+      const x =
+        Math.cos(lat1 * (Math.PI / 180)) * Math.sin(lat2 * (Math.PI / 180)) -
+        Math.sin(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) * Math.cos(dLon);
+      let brng = Math.atan2(y, x) * (180 / Math.PI);
+      return (brng + 360) % 360;
+    };
 
-        const position: Position = {
-          vendorEventId: uuidv4(),
-          lat: req.pickup.lat + checkpoint.latOffset,
-          lng: req.pickup.lng + checkpoint.lngOffset,
-          speedKmph: checkpoint.status === 'COMPLETED' ? 0 : 25,
-          headingDeg: 180,
-          capturedAt: new Date(),
-        };
-        const positions = this.positions.get(vendorBookingRef) ?? [];
-        positions.push(position);
-        this.positions.set(vendorBookingRef, positions);
-      }, checkpoint.delayMs);
-    });
+    // Start exactly at pickup coordinates
+    let currentLat = req.pickup.lat;
+    let currentLng = req.pickup.lng;
+
+    let phase = 'WAIT_ACCEPT';
+    let phaseTicks = 0;
+
+    const intervalId = setInterval(() => {
+      const booking = this.bookings.get(vendorBookingRef);
+      if (!booking || booking.status === 'CANCELLED' || phase === 'COMPLETED') {
+        clearInterval(intervalId);
+        return;
+      }
+
+      let targetLat = req.pickup.lat;
+      let targetLng = req.pickup.lng;
+      let speedKmph = SPEED_KMPH_TO_PICKUP;
+
+      if (phase === 'TO_DROP') {
+        targetLat = req.drop.lat;
+        targetLng = req.drop.lng;
+        speedKmph = SPEED_KMPH_TO_DROP;
+      }
+
+      let newStatus = booking.status;
+      let currentSpeed = speedKmph;
+      let heading = getHeading(currentLat, currentLng, targetLat, targetLng);
+
+      phaseTicks++;
+
+      if (phase === 'WAIT_ACCEPT') {
+        currentSpeed = 0;
+        if (phaseTicks >= 2) {
+          newStatus = 'VENDOR_ACCEPTED';
+          phase = 'WAIT_ASSIGN';
+          phaseTicks = 0;
+        }
+      } else if (phase === 'WAIT_ASSIGN') {
+        currentSpeed = 0;
+        if (phaseTicks >= 2) {
+          newStatus = 'DRIVER_ASSIGNED';
+          phase = 'TO_PICKUP';
+          phaseTicks = 0;
+        }
+      } else if (phase === 'TO_PICKUP' || phase === 'TO_DROP') {
+        const distKm = getDistanceFromLatLonInKm(currentLat, currentLng, targetLat, targetLng);
+        const distToMoveKm = (speedKmph / 3600) * (TICK_MS / 1000);
+
+        if (distKm <= distToMoveKm) {
+          currentLat = targetLat;
+          currentLng = targetLng;
+          currentSpeed = 0;
+          if (phase === 'TO_PICKUP') {
+            newStatus = 'ARRIVED';
+            phase = 'AT_PICKUP';
+            phaseTicks = 0;
+          } else if (phase === 'TO_DROP') {
+            newStatus = 'DESTINATION_REACHED';
+            phase = 'AT_DROP';
+            phaseTicks = 0;
+          }
+        } else {
+          const ratio = distToMoveKm / distKm;
+          currentLat += (targetLat - currentLat) * ratio;
+          currentLng += (targetLng - currentLng) * ratio;
+          newStatus = phase === 'TO_PICKUP' ? 'EN_ROUTE' : 'PATIENT_ONBOARD';
+        }
+      } else if (phase === 'AT_PICKUP') {
+        newStatus = 'ARRIVED';
+        currentSpeed = 0;
+        if (phaseTicks >= 3) {
+          newStatus = 'PATIENT_ONBOARD';
+          phase = 'TO_DROP';
+          phaseTicks = 0;
+        }
+      } else if (phase === 'AT_DROP') {
+        newStatus = 'DESTINATION_REACHED';
+        currentSpeed = 0;
+        if (phaseTicks >= 3) {
+          newStatus = 'COMPLETED';
+          phase = 'COMPLETED';
+          phaseTicks = 0;
+        }
+      }
+
+      let etaSeconds = 0;
+      if (phase === 'TO_PICKUP') {
+        etaSeconds = Math.floor(
+          (getDistanceFromLatLonInKm(currentLat, currentLng, req.pickup.lat, req.pickup.lng) / speedKmph) * 3600,
+        );
+      } else if (phase === 'TO_DROP' || phase === 'AT_PICKUP') {
+        etaSeconds = Math.floor(
+          (getDistanceFromLatLonInKm(currentLat, currentLng, req.drop.lat, req.drop.lng) / SPEED_KMPH_TO_DROP) * 3600,
+        );
+      }
+
+      booking.status = newStatus;
+      booking.etaSeconds = etaSeconds;
+      this.bookings.set(vendorBookingRef, booking);
+
+      const position: Position = {
+        vendorEventId: uuidv4(),
+        lat: currentLat,
+        lng: currentLng,
+        speedKmph: currentSpeed,
+        headingDeg: Math.round(heading),
+        capturedAt: new Date(),
+      };
+      const positions = this.positions.get(vendorBookingRef) ?? [];
+      positions.push(position);
+      this.positions.set(vendorBookingRef, positions);
+
+      if (phase === 'COMPLETED') {
+        clearInterval(intervalId);
+      }
+    }, TICK_MS);
   }
 }

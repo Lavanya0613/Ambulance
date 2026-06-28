@@ -1,8 +1,8 @@
 export interface CreateBookingRequest {
   requestId: string;
   idempotencyKey?: string;
-  pickup: { lat: number; lng: number; addressLine?: string };
-  drop: { lat: number; lng: number; addressLine?: string };
+  pickup: { lat: number; lng: number; address: string };
+  drop: { lat: number; lng: number; address: string };
   priority?: 'normal' | 'high' | 'critical';
   patient: { name: string; phoneE164: string };
   notes?: string;
@@ -18,6 +18,8 @@ export interface CreateBookingResponse {
     phoneE164?: string;
     vehicleNumber?: string;
     ambulanceType?: string;
+    ambulanceNumber?: string;
+    photoUrl?: string;
   } | null;
   etaSeconds?: number | null;
 }

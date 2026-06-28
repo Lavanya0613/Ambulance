@@ -3,6 +3,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'src/features/admin/admin_dashboard_screen.dart';
 
 void main() {
   runApp(ProviderScope(child: PlaceholderApp()));
@@ -14,9 +15,7 @@ class PlaceholderApp extends StatelessWidget {
     // TODO: Replace with real App widget and routing once screens are implemented.
     return MaterialApp(
       title: 'Ambulance App',
-      home: Scaffold(
-        body: Center(child: Text('App scaffold — UI not implemented yet')),
-      ),
+      home: const AdminDashboardScreen(),
     );
   }
 }

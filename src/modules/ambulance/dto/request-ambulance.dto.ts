@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEnum, IsNotEmpty, IsNumber, IsObject, IsString, ValidateNested } from 'class-validator';
+import { IsEnum, IsNotEmpty, IsNumber, IsObject, IsOptional, IsString, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 
 class LocationDto {
@@ -11,9 +11,9 @@ class LocationDto {
   @IsNumber()
   lng: number;
 
-  @ApiProperty({ required: false })
+  @ApiProperty()
   @IsString()
-  addressLine?: string;
+  address: string;
 }
 
 class PatientInfoDto {
@@ -26,9 +26,13 @@ class PatientInfoDto {
   phoneE164: string;
 
   @ApiProperty({ required: false })
+  @IsOptional()
+  @IsNumber()
   age?: number;
 
   @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
   notes?: string;
 }
 
@@ -61,6 +65,7 @@ export class RequestAmbulanceDto {
   patient: PatientInfoDto;
 
   @ApiProperty({ required: false })
+  @IsOptional()
   @IsString()
   notes?: string;
 }

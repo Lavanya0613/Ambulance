@@ -2,12 +2,14 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { AmbulanceRequest, RequestStatus } from '../entities/ambulance-request.entity';
+import { AuditService } from '../../audit/audit.service';
 
 @Injectable()
 export class AmbulanceRepository {
   constructor(
     @InjectRepository(AmbulanceRequest)
     private readonly repo: Repository<AmbulanceRequest>,
+    private readonly auditService: AuditService,
   ) {}
 
   async create(request: Partial<AmbulanceRequest>) {
@@ -24,7 +26,21 @@ export class AmbulanceRepository {
   }
 
   async updateStatus(id: string, status: RequestStatus) {
-    await this.repo.update({ id }, { status });
+    const existing = await this.findById(id);
+    if (existing && existing.status !== status) {
+      const prevStatus = existing.status;
+      await this.repo.update({ id }, { status });
+      await this.auditService.logAction(
+        'Status Updated',
+        'system',
+        id,
+        'AmbulanceRequest',
+        prevStatus,
+        status
+      );
+    } else if (!existing) {
+      await this.repo.update({ id }, { status });
+    }
     return this.findById(id);
   }
 
@@ -34,7 +50,20 @@ export class AmbulanceRepository {
   }
 
   async assignVendor(id: string, vendorId: string, vendorBookingRef: string, driver: any, etaSeconds?: number) {
-    await this.repo.update({ id }, { assignedVendorId: vendorId, vendorBookingRef, assignedDriver: driver, etaSeconds });
-    return this.findById(id);
+    const request = await this.findById(id);
+    if (!request) return null;
+    request.assignedVendorId = vendorId;
+    request.vendorBookingRef = vendorBookingRef;
+    if (driver) {
+      request.vendorDriverRef = driver.vendorDriverRef;
+      request.vendorDriverName = driver.name;
+      request.vendorDriverPhone = driver.phoneE164;
+      request.vendorVehicleNumber = driver.vehicleNumber;
+      request.vendorAmbulanceType = driver.ambulanceType;
+    }
+    request.etaSeconds = etaSeconds ?? null;
+    const result = await this.repo.save(request);
+    await this.auditService.logAction(id, 'Driver Assigned', undefined, driver?.vendorDriverRef);
+    return result;
   }
 }

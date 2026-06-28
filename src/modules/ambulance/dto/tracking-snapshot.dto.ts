@@ -15,6 +15,12 @@ class DriverDto {
 
   @ApiProperty()
   ambulanceType: string;
+
+  @ApiProperty({ required: false })
+  ambulanceNumber?: string;
+
+  @ApiProperty({ required: false })
+  photoUrl?: string;
 }
 
 class PositionDto {
@@ -56,12 +62,18 @@ export class TrackingSnapshotDto {
   @ApiProperty({ format: 'date-time' })
   updatedAt: Date;
 
-  // Pickup / drop coordinates for map rendering
+  // Pickup / drop coordinates and addresses for map rendering
+  @ApiProperty()
+  pickupAddress: string;
+
   @ApiProperty({ format: 'double' })
   pickupLat: number;
 
   @ApiProperty({ format: 'double' })
   pickupLng: number;
+
+  @ApiProperty()
+  dropAddress: string;
 
   @ApiProperty({ format: 'double' })
   dropLat: number;
