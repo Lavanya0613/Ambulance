@@ -1,21 +1,17 @@
 import 'package:dio/dio.dart';
-
+import 'api_endpoints.dart';
 import 'api_exception.dart';
 
 typedef TokenProvider = Future<String?> Function();
 
 class DioClient {
-  DioClient({
-    String baseUrl = 'https://api.example.com/v1',
-    TokenProvider? tokenProvider,
-    Duration connectTimeout = const Duration(seconds: 10),
-    Duration receiveTimeout = const Duration(seconds: 15),
-  })  : _tokenProvider = tokenProvider,
+  DioClient({TokenProvider? tokenProvider})
+      : _tokenProvider = tokenProvider,
         _dio = Dio(
           BaseOptions(
-            baseUrl: baseUrl,
-            connectTimeout: connectTimeout,
-            receiveTimeout: receiveTimeout,
+            baseUrl: apiBaseUrl,
+            connectTimeout: const Duration(seconds: 10),
+            receiveTimeout: const Duration(seconds: 15),
             responseType: ResponseType.json,
             headers: const {'Content-Type': 'application/json'},
           ),
@@ -23,7 +19,6 @@ class DioClient {
     _dio.interceptors.add(
       InterceptorsWrapper(
         onRequest: _onRequest,
-        onResponse: _onResponse,
         onError: _onError,
       ),
     );
@@ -40,11 +35,6 @@ class DioClient {
       options.headers['Authorization'] = 'Bearer $token';
     }
     handler.next(options);
-  }
-
-  Response<dynamic> _onResponse(Response<dynamic> response, ResponseInterceptorHandler handler) {
-    handler.next(response);
-    return response;
   }
 
   void _onError(DioException error, ErrorInterceptorHandler handler) {

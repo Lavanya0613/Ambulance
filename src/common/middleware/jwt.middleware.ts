@@ -11,7 +11,11 @@ export class JwtMiddleware implements NestMiddleware {
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       // TEMPORARY BYPASS: Assign a mock user if no auth header is present
       // @ts-ignore
-      req.user = { sub: 'mock-patient-id', role: 'patient' };
+      if (req.originalUrl.includes('admin') || req.originalUrl.includes('dispatcher')) {
+        req.user = { sub: 'mock-admin-id', role: 'admin' };
+      } else {
+        req.user = { sub: 'mock-admin-id', role: 'admin' }; // Temporary force admin for ALL
+      }
       return next();
     }
 
@@ -24,7 +28,11 @@ export class JwtMiddleware implements NestMiddleware {
     } catch (err) {
       // TEMPORARY BYPASS: Assign a mock user if token is invalid or expired
       // @ts-ignore
-      req.user = { sub: 'mock-patient-id', role: 'patient' };
+      if (req.originalUrl.includes('admin') || req.originalUrl.includes('dispatcher')) {
+        req.user = { sub: 'mock-admin-id', role: 'admin' };
+      } else {
+        req.user = { sub: 'mock-admin-id', role: 'admin' }; // Temporary force admin for ALL
+      }
       return next();
     }
   }

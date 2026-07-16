@@ -1,7 +1,11 @@
+const String apiBaseUrl = 'http://localhost:3000';
+
 class ApiEndpoints {
+  // Patient
   static const String patientRequests = '/patient/requests';
-  static String cancelRequest(String requestId) => '/patient/requests/$requestId/cancel';
-  static String trackPatientRequest(String requestId) => '/patient/requests/$requestId/track';
-  static const String dispatcherRequests = '/dispatcher/requests';
-  static String dispatcherTracking(String requestId) => '/dispatcher/requests/$requestId/tracking';
+  static String patientRequestTrack(String id) => '/patient/requests/$id/track';
+  static String patientRequestCancel(String id) => '/patient/requests/$id/cancel';
+
+  // WebSocket
+  static const String wsNamespace = '/ws';
 }
