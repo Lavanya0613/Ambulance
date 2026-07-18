@@ -33,16 +33,8 @@ class CallHealthApp extends StatelessWidget {
       title: 'CallHealth Ambulance',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
-      initialRoute: '/tracking',
-      onGenerateRoute: (settings) {
-        if (settings.name == '/tracking') {
-          return MaterialPageRoute(
-            builder: (_) => const TrackingScreen(),
-            settings: RouteSettings(name: '/tracking', arguments: '27c49d4a-3456-4218-8951-d3782f109054'),
-          );
-        }
-        return AppRouter.onGenerateRoute(settings);
-      },
+      initialRoute: AppRouter.splash,
+      onGenerateRoute: AppRouter.onGenerateRoute,
     );
   }
 }
