@@ -21,6 +21,7 @@ interface AddressAutocompleteProps {
   inputValue: string;
   onInputValueChange: (newInputValue: string) => void;
   onSelect: (location: LocationResult | null) => void;
+  onUseCurrentLocation?: () => void;
   endAdornment?: React.ReactNode;
 }
 
@@ -31,6 +32,7 @@ export default function AddressAutocomplete({
   inputValue,
   onInputValueChange,
   onSelect, 
+  onUseCurrentLocation,
   endAdornment 
 }: AddressAutocompleteProps) {
   const [open, setOpen] = useState(false);
@@ -43,7 +45,11 @@ export default function AddressAutocomplete({
     // In a production app with API keys, you would swap this axios call 
     // with the Google Maps Places Service or Google Maps REST API.
     if (inputValue.length < 3) {
-      setOptions([]);
+      if (onUseCurrentLocation) {
+        setOptions([{ display_name: "Use Current Location", place_id: "CURRENT_LOC", isAction: true }]);
+      } else {
+        setOptions([]);
+      }
       return undefined;
     }
 
@@ -89,6 +95,10 @@ export default function AddressAutocomplete({
       value={value}
       onChange={(_e, newValue) => {
         if (newValue && typeof newValue !== 'string') {
+          if (newValue.isAction && newValue.place_id === 'CURRENT_LOC') {
+            if (onUseCurrentLocation) onUseCurrentLocation();
+            return;
+          }
           onSelect({
             address: newValue.display_name || newValue.address,
             lat: parseFloat(newValue.lat),
@@ -99,17 +109,31 @@ export default function AddressAutocomplete({
           onSelect(null);
         }
       }}
-      noOptionsText="No locations found"
-      renderOption={(props, option) => (
-        <li {...props} key={option.place_id}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 0.5 }}>
-            <LocationOnIcon sx={{ color: '#9ca3af' }} />
-            <Typography variant="body2" sx={{ color: '#1F2937' }}>
-              {option.display_name}
-            </Typography>
-          </Box>
-        </li>
-      )}
+      noOptionsText={inputValue.length < 3 ? "Type at least 3 characters to search..." : "No locations found"}
+      renderOption={(props, option) => {
+        if (option.isAction && option.place_id === 'CURRENT_LOC') {
+          return (
+            <li {...props} key={option.place_id}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 0.5, color: '#1E3A5F' }}>
+                <LocationOnIcon sx={{ color: '#1E3A5F' }} />
+                <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                  {option.display_name}
+                </Typography>
+              </Box>
+            </li>
+          );
+        }
+        return (
+          <li {...props} key={option.place_id}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 0.5 }}>
+              <LocationOnIcon sx={{ color: '#9ca3af' }} />
+              <Typography variant="body2" sx={{ color: '#1F2937' }}>
+                {option.display_name}
+              </Typography>
+            </Box>
+          </li>
+        );
+      }}
       renderInput={(params) => (
         <TextField
           {...params}

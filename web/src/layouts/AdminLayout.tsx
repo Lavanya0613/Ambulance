@@ -106,7 +106,7 @@ export default function AdminLayout() {
           <IconButton color="inherit" edge="start" onClick={handleDrawerToggle} sx={{ mr: 2, display: { md: 'none' } }}>
             <MenuIcon />
           </IconButton>
-          
+
           <Typography variant="h6" noWrap component="div" sx={{ fontWeight: 'bold', display: { xs: 'none', sm: 'block' } }}>
             {ADMIN_NAV.find(n => isActive(n.path))?.label || 'Admin Portal'}
           </Typography>

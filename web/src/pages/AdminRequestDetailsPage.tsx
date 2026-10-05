@@ -1,15 +1,20 @@
 import { Box, Container, Card, CardContent, Typography, Grid, Chip, Divider, IconButton, Skeleton } from '@mui/material';
 import { ErrorState, CardSkeleton } from '../components/UIStates';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
 import { useParams, useNavigate } from 'react-router-dom';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import TimelineComponent from '../components/TimelineComponent';
 import DriverCard from '../components/DriverCard';
+import { useEffect } from 'react';
+import { io } from 'socket.io-client';
+
+const API_BASE_URL = 'http://localhost:3000';
 
 export default function AdminRequestDetailsPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const { data: request, isLoading, isError, refetch } = useQuery({
     queryKey: ['admin-request-details', id],
@@ -20,6 +25,30 @@ export default function AdminRequestDetailsPage() {
     enabled: !!id,
     refetchInterval: 15000, // Refresh every 15s to catch new positions
   });
+
+  useEffect(() => {
+    const token = localStorage.getItem('access_token');
+    if (!token || !id) return;
+
+    const socket = io(`${API_BASE_URL}/ws`, {
+      transports: ['websocket'],
+      auth: { token },
+      forceNew: true
+    });
+
+    const handleUpdate = (data: { requestId: string }) => {
+      if (data.requestId === id) {
+        queryClient.invalidateQueries({ queryKey: ['admin-request-details', id] });
+      }
+    };
+
+    socket.on('status_updated', handleUpdate);
+    socket.on('tracking_updated', handleUpdate);
+
+    return () => {
+      socket.disconnect();
+    };
+  }, [id, queryClient]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -126,7 +155,7 @@ export default function AdminRequestDetailsPage() {
               <Divider sx={{ mb: 2 }} />
               
               <Box sx={{ maxHeight: 500, overflow: 'auto', pr: 1 }}>
-                <TimelineComponent history={request.trackingHistory || []} />
+                <TimelineComponent history={request.trackingHistory || []} status={request.status} />
               </Box>
             </CardContent>
           </Card>

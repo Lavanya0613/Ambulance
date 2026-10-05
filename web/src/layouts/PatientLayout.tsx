@@ -11,9 +11,9 @@ import Brightness4Icon from '@mui/icons-material/Brightness4';
 import Brightness7Icon from '@mui/icons-material/Brightness7';
 
 const NAV_ITEMS = [
-  { label: 'Book Ambulance', path: '/',        icon: <LocalHospitalIcon fontSize="small" /> },
-  { label: 'My Requests',    path: '/my-requests', icon: <HistoryIcon fontSize="small" /> },
-  { label: 'Profile',        path: '/profile', icon: <PersonIcon fontSize="small" /> },
+  { label: 'Book Ambulance', path: '/', icon: <LocalHospitalIcon fontSize="small" /> },
+  { label: 'My Requests', path: '/my-requests', icon: <HistoryIcon fontSize="small" /> },
+  { label: 'Profile', path: '/profile', icon: <PersonIcon fontSize="small" /> },
 ];
 
 export default function PatientLayout() {

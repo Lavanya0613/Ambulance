@@ -1,0 +1,8 @@
+com\callhealth\ambulance\gateway\WebSocketIntegrationTest.class
+com\callhealth\ambulance\service\AmbulanceBookingIntegrationTest.class
+com\callhealth\ambulance\seed\DemoSeedIntegrationTest.class
+com\callhealth\ambulance\service\PaymentIntegrationTest.class
+com\callhealth\ambulance\service\OrderHistoryIntegrationTest.class
+com\callhealth\ambulance\controller\PatientRequestControllerTest.class
+com\callhealth\ambulance\queue\QueueIntegrationTest.class
+com\callhealth\ambulance\service\TrackingIntegrationTest.class

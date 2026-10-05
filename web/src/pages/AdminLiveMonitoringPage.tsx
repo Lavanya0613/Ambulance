@@ -15,6 +15,7 @@ import SpeedIcon from '@mui/icons-material/Speed';
 import LayersIcon from '@mui/icons-material/Layers';
 import CancelIcon from '@mui/icons-material/Cancel';
 import SearchIcon from '@mui/icons-material/Search';
+import LiveMap from '../components/LiveMap';
 
 const API_BASE_URL = 'http://localhost:3000';
 
@@ -28,6 +29,10 @@ export default function AdminLiveMonitoringPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'eta_asc'>('newest');
+
+  // Tracking state
+  const [selectedRequest, setSelectedRequest] = useState<any | null>(null);
+  const [liveLocation, setLiveLocation] = useState<{ lat: number; lng: number } | null>(null);
 
   // Queries (AuthContext handles Axios headers automatically)
   const { data: stats, isLoading: statsLoading } = useQuery({
@@ -73,6 +78,15 @@ export default function AdminLiveMonitoringPage() {
       queryClient.setQueryData(['dashboard-active-requests'], (old: any) => {
         if (!old) return old;
         return old.map((r: any) => r.id === data.requestId ? { ...r, etaSeconds: data.etaSeconds } : r);
+      });
+    });
+
+    newSocket.on('tracking_updated', (data) => {
+      setSelectedRequest((prev: any) => {
+        if (prev && (prev.id === data.requestId || prev.requestId === data.requestId)) {
+          setLiveLocation({ lat: data.lat, lng: data.lng });
+        }
+        return prev;
       });
     });
 
@@ -253,7 +267,24 @@ export default function AdminLiveMonitoringPage() {
                       <TableRow><TableCell colSpan={5} align="center" sx={{ py: 3, color: 'text.secondary' }}>No trips found matching criteria.</TableCell></TableRow>
                     ) : (
                       filteredRequests.map((req: any) => (
-                        <TableRow key={req.id || req.requestId} hover sx={{ '&:last-child td, &:last-child th': { border: 0 } }}>
+                        <TableRow 
+                          key={req.id || req.requestId} 
+                          hover 
+                          onClick={() => {
+                            setSelectedRequest(req);
+                            if (req.positions && req.positions.length > 0) {
+                              const p = req.positions[0];
+                              setLiveLocation({ lat: p.lat, lng: p.lng });
+                            } else {
+                              setLiveLocation(null);
+                            }
+                          }}
+                          sx={{ 
+                            '&:last-child td, &:last-child th': { border: 0 },
+                            cursor: 'pointer',
+                            backgroundColor: selectedRequest && (selectedRequest.id === (req.id || req.requestId) || selectedRequest.requestId === (req.id || req.requestId)) ? '#f0f7ff' : 'inherit'
+                          }}
+                        >
                           <TableCell sx={{ fontWeight: 600, color: '#1E3A5F' }}>{req.requestNumber}</TableCell>
                           <TableCell>
                             <Box>
@@ -295,6 +326,12 @@ export default function AdminLiveMonitoringPage() {
           </Card>
         </Grid>
 
+        {/* Map Area */}
+        <Grid size={{ xs: 12, lg: 3 }}>
+          <Card sx={{ height: '100%', minHeight: 400 }}>
+            <LiveMap request={selectedRequest} liveLocation={liveLocation} />
+          </Card>
+        </Grid>
       </Grid>
     </Container>
   );

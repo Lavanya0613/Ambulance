@@ -274,16 +274,18 @@ export default function ActiveRequestsPage() {
                     <Box sx={{ p: 2, pt: 0, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
 
                       
-                      <Button 
-                        size="small" 
-                        variant="outlined" 
-                        color="primary" 
-                        startIcon={<RouteIcon />}
-                        onClick={() => navigate(`/tracking/${reqId}`)}
-                        sx={{ flexGrow: 1 }}
-                      >
-                        Track Map
-                      </Button>
+                      {req.status !== 'CANCELLED' && req.status !== 'FAILED' && (
+                        <Button 
+                          size="small" 
+                          variant="outlined" 
+                          color="primary" 
+                          startIcon={<RouteIcon />}
+                          onClick={() => navigate(`/tracking/${reqId}`)}
+                          sx={{ flexGrow: 1 }}
+                        >
+                          Track Map
+                        </Button>
+                      )}
 
                       {isActive && !isPending && (
                         <Button 

@@ -2,13 +2,11 @@ import { Box, Typography, Stepper, Step, StepLabel, StepContent, StepConnector, 
 import { styled } from '@mui/material/styles';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import AddCircleIcon from '@mui/icons-material/AddCircle';
-import SearchIcon from '@mui/icons-material/Search';
 import HandshakeIcon from '@mui/icons-material/Handshake';
 import AssignmentIndIcon from '@mui/icons-material/AssignmentInd';
 import DirectionsCarIcon from '@mui/icons-material/DirectionsCar';
 import LocationOnIcon from '@mui/icons-material/LocationOn';
 import EmojiPeopleIcon from '@mui/icons-material/EmojiPeople';
-import CancelIcon from '@mui/icons-material/Cancel';
 
 // Custom Connector for Timeline
 const TimelineConnector = styled(StepConnector)(({ theme }) => ({
@@ -43,90 +41,69 @@ interface TrackingPing {
 
 interface TimelineComponentProps {
   history: TrackingPing[];
+  status: string;
 }
 
-export default function TimelineComponent({ history }: TimelineComponentProps) {
-  // Sort oldest first for a natural top-to-bottom timeline flow
-  const sortedHistory = [...history].sort(
-    (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-  );
+const LIFECYCLE_STEPS = [
+  { key: 'REQUEST_CREATED', label: 'Booking Received', icon: <AddCircleIcon /> },
+  { key: 'VENDOR_ACCEPTED', label: 'Accepted', icon: <HandshakeIcon /> },
+  { key: 'DRIVER_ASSIGNED', label: 'Driver Assigned', icon: <AssignmentIndIcon /> },
+  { key: 'EN_ROUTE', label: 'En Route', icon: <DirectionsCarIcon /> },
+  { key: 'ARRIVED', label: 'Arrived', icon: <LocationOnIcon /> },
+  { key: 'PATIENT_ONBOARD', label: 'Patient Onboard', icon: <EmojiPeopleIcon /> },
+  { key: 'COMPLETED', label: 'Completed', icon: <CheckCircleIcon /> },
+];
 
-  const getStepConfig = (status: string) => {
-    switch (status) {
-      case 'REQUEST_CREATED':
-        return { label: 'Booking Created', icon: <AddCircleIcon color="primary" /> };
-      case 'SEARCHING_DRIVER':
-      case 'SEARCHING_VENDOR':
-        return { label: 'Vendor Selected', icon: <SearchIcon color="warning" /> };
-      case 'VENDOR_ACCEPTED':
-        return { label: 'Vendor Accepted', icon: <HandshakeIcon color="info" /> };
-      case 'DRIVER_ASSIGNED':
-        return { label: 'Driver Assigned', icon: <AssignmentIndIcon color="info" /> };
-      case 'DRIVER_STARTED':
-      case 'EN_ROUTE':
-        return { label: 'En Route', icon: <DirectionsCarIcon color="secondary" /> };
-      case 'ARRIVED':
-        return { label: 'Driver Reached Pickup', icon: <LocationOnIcon color="primary" /> };
-      case 'PATIENT_ONBOARD':
-        return { label: 'Patient Picked', icon: <EmojiPeopleIcon color="primary" /> };
-      case 'DESTINATION_REACHED':
-        return { label: 'Destination Reached', icon: <LocationOnIcon color="success" /> };
-      case 'COMPLETED':
-        return { label: 'Completed', icon: <CheckCircleIcon color="success" /> };
-      case 'CANCELLED':
-      case 'FAILED':
-        return { label: 'Cancelled', icon: <CancelIcon color="error" /> };
-      default:
-        return { label: status.replace(/_/g, ' '), icon: <CheckCircleIcon color="disabled" /> };
-    }
+function getStepIndex(status: string) {
+  const map: Record<string, number> = {
+    'PENDING': 0, 'REQUEST_CREATED': 0, 'SEARCHING_DRIVER': 0,
+    'VENDOR_ACCEPTED': 1, 
+    'ASSIGNED': 2, 'DRIVER_ASSIGNED': 2,
+    'EN_ROUTE': 3, 
+    'ARRIVED': 4, 
+    'PATIENT_ONBOARD': 5, 'IN_PROGRESS': 5, 'DESTINATION_REACHED': 5, 
+    'COMPLETED': 6,
   };
+  return map[status] ?? 0;
+}
 
-  if (!sortedHistory || sortedHistory.length === 0) {
-    return (
-      <Typography color="text.secondary" align="center" sx={{ mt: 4 }}>
-        No events recorded yet.
-      </Typography>
-    );
-  }
+export default function TimelineComponent({ history, status }: TimelineComponentProps) {
+  const currentStep = getStepIndex(status);
 
   return (
     <Box sx={{ width: '100%' }}>
       <Stepper 
-        activeStep={sortedHistory.length} 
+        activeStep={currentStep} 
         orientation="vertical"
         connector={<TimelineConnector />}
       >
-        {sortedHistory.map((ping, index) => {
-          const config = getStepConfig(ping.status);
-          const date = new Date(ping.timestamp);
+        {LIFECYCLE_STEPS.map((step, index) => {
+          // Find the earliest timestamp for this step in history
+          const eventInHistory = history.find(h => getStepIndex(h.status) === index);
+          const date = eventInHistory ? new Date(eventInHistory.timestamp) : null;
           
           return (
-            <Step key={index} active={true}>
+            <Step key={step.key}>
               <StepLabel 
-                icon={config.icon}
+                icon={
+                  <Box sx={{ color: index <= currentStep ? 'primary.main' : 'text.disabled' }}>
+                    {step.icon}
+                  </Box>
+                }
                 optional={
-                  <Typography variant="caption" color="text.secondary">
-                    {date.toLocaleDateString()} {date.toLocaleTimeString()}
-                  </Typography>
+                  date && (
+                    <Typography variant="caption" color="text.secondary">
+                      {date.toLocaleDateString()} {date.toLocaleTimeString()}
+                    </Typography>
+                  )
                 }
               >
-                <Typography variant="subtitle1" sx={{ fontWeight: 'bold', color: '#1E3A5F' }}>
-                  {config.label}
+                <Typography variant="subtitle1" sx={{ fontWeight: 'bold', color: index <= currentStep ? '#1E3A5F' : 'text.disabled' }}>
+                  {step.label}
                 </Typography>
               </StepLabel>
               <StepContent>
-                <Box sx={{ mb: 2, p: 1.5, bgcolor: '#f8fafc', borderRadius: 1, border: '1px solid #f1f5f9' }}>
-                  {ping.lat && ping.lng ? (
-                    <Typography variant="caption" sx={{ display: 'block', color: '#64748b' }}>
-                      Location: {ping.lat.toString().substring(0,8)}, {ping.lng.toString().substring(0,8)}
-                    </Typography>
-                  ) : null}
-                  {ping.speed != null && ping.speed > 0 ? (
-                    <Typography variant="caption" sx={{ display: 'block', color: '#64748b' }}>
-                      Speed: {ping.speed} m/s
-                    </Typography>
-                  ) : null}
-                </Box>
+                {/* We don't necessarily need step content for future steps, but we could put something here */}
               </StepContent>
             </Step>
           );
