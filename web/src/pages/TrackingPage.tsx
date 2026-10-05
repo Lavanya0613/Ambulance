@@ -185,15 +185,15 @@ export default function TrackingPage() {
     });
     socket.on('disconnect', () => setSocketConnected(false));
     
-    socket.on('ambulance_assigned', (data: any) => {
+    socket.on('driver_assigned', (data: any) => {
       if (data.driver) setLiveDriver(data.driver);
       if (data.etaSeconds != null) setLiveEta(data.etaSeconds);
-      setLiveStatus('ASSIGNED');
+      setLiveStatus('DRIVER_ASSIGNED');
       showToast('Driver Assigned!');
       refetch();
     });
     
-    socket.on('location_updated', (pos: Location) => {
+    socket.on('tracking_updated', (pos: Location) => {
       setLiveLocation(pos);
     });
     socket.on('eta_updated', (data: { etaSeconds: number }) => {
@@ -204,14 +204,12 @@ export default function TrackingPage() {
       showToast(`Status Updated: ${data.status.replace('_', ' ')}`);
       refetch();
     });
-    socket.on('ride_completed', () => {
+    socket.on('request_completed', () => {
       setLiveStatus('COMPLETED');
       setLiveEta(0);
       showToast('Trip completed. Thank you!');
       refetch();
     });
-    socket.on('en_route',  () => { setLiveStatus('EN_ROUTE'); showToast('Ambulance is En Route'); });
-    socket.on('arrived',   () => { setLiveStatus('ARRIVED'); showToast('Driver has arrived'); });
 
     return () => { socket.disconnect(); };
   }, [requestId]);
@@ -225,17 +223,26 @@ export default function TrackingPage() {
 
     pickupMarkerRef.current = L.marker([request.pickupLat, request.pickupLng], { icon: patientIcon }).addTo(map);
     dropMarkerRef.current = L.marker([request.dropLat, request.dropLng], { icon: hospitalIcon }).addTo(map);
-    routeLineRef.current = L.polyline([[request.pickupLat, request.pickupLng], [request.dropLat, request.dropLng]], { color: '#1E3A5F', weight: 4, opacity: 0.6, dashArray: '8, 10' }).addTo(map);
+    
+    if (effectiveStatus !== 'CANCELLED') {
+      routeLineRef.current = L.polyline([[request.pickupLat, request.pickupLng], [request.dropLat, request.dropLng]], { color: '#1E3A5F', weight: 4, opacity: 0.6, dashArray: '8, 10' }).addTo(map);
+    }
     map.fitBounds([[request.pickupLat, request.pickupLng], [request.dropLat, request.dropLng]], { padding: [50, 50] });
 
     return () => {
       if (mapInstance.current) { mapInstance.current.remove(); mapInstance.current = null; mapInitialized.current = false; }
     };
-  }, [request]);
+  }, [request, effectiveStatus]);
 
   useEffect(() => {
     const map = mapInstance.current;
-    if (!map || !liveLocation?.lat || !liveLocation?.lng) return;
+    if (!map || !liveLocation?.lat || !liveLocation?.lng || effectiveStatus === 'CANCELLED') {
+      if (ambulanceMarkerRef.current) {
+        ambulanceMarkerRef.current.remove();
+        ambulanceMarkerRef.current = null;
+      }
+      return;
+    }
     const ambPos: L.LatLngExpression = [liveLocation.lat, liveLocation.lng];
     if (!ambulanceMarkerRef.current) {
       ambulanceMarkerRef.current = L.marker(ambPos, { icon: ambulanceIcon }).addTo(map);
@@ -254,7 +261,7 @@ export default function TrackingPage() {
       // Fit bounds to keep pickup, drop, and ambulance visible
       map.fitBounds([[request.pickupLat, request.pickupLng], ambPos, [request.dropLat, request.dropLng]], { padding: [50, 50], maxZoom: 16 });
     }
-  }, [liveLocation, request]);
+  }, [liveLocation, request, effectiveStatus]);
 
   const handleCancelSubmit = useCallback(async () => {
     if (!requestId) return;
@@ -278,6 +285,7 @@ export default function TrackingPage() {
   const { color: statusColor, bg: statusBg } = getStatusMeta(effectiveStatus);
 
   const getEtaLabel = () => {
+    if (effectiveStatus === 'CANCELLED') return '--';
     if (effectiveEta === null) return 'Calculated shortly';
     if (effectiveEta <= 0) return 'Arrived';
     const mins = Math.ceil(effectiveEta / 60);
@@ -363,79 +371,88 @@ export default function TrackingPage() {
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
               
               {/* Driver Card */}
-              <Card sx={{ borderRadius: '24px', boxShadow: '0 8px 24px rgba(30,58,95,0.06)', p: 1 }}>
-                <CardContent>
-                  <Typography variant="h6" sx={{ fontWeight: 800, color: '#1E3A5F', mb: 3 }}>Driver Details</Typography>
-                  {effectiveDriver ? (
-                    <Box>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
-                        <Avatar src={effectiveDriver.photoUrl} sx={{ width: 64, height: 64, bgcolor: '#f0f4f8', color: '#1E3A5F' }}>
-                          {!effectiveDriver.photoUrl && <PersonIcon sx={{ fontSize: 40 }} />}
-                        </Avatar>
-                        <Box>
-                          <Typography variant="h5" sx={{ fontWeight: 800, color: '#1F2937' }}>{effectiveDriver.name}</Typography>
-                          <Typography variant="subtitle1" sx={{ color: '#1F2937', fontWeight: 900, mt: 0.5, mb: 0.5, display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <Box component="span" sx={{ bgcolor: '#F4B400', color: '#000', px: 1.5, py: 0.5, borderRadius: 1, border: '1px solid #000' }}>
-                              {effectiveDriver.vehicleNumber}
-                            </Box>
-                            {effectiveDriver.ambulanceNumber && (
-                              <Chip label={effectiveDriver.ambulanceNumber} size="small" sx={{ fontWeight: 800, bgcolor: '#1E3A5F', color: '#fff', borderRadius: '8px' }} />
-                            )}
-                          </Typography>
-                          <Typography variant="subtitle2" sx={{ color: '#6b7280', fontWeight: 600 }}>
-                            {effectiveDriver.ambulanceType === 'BLS' ? 'Standard Ambulance' : effectiveDriver.ambulanceType === 'ALS' ? 'Emergency Ambulance' : effectiveDriver.ambulanceType === 'ICU' ? 'Critical Care Ambulance' : effectiveDriver.ambulanceType}
-                          </Typography>
-                          <Typography variant="body2" sx={{ color: '#4b5563', fontWeight: 600, mt: 0.5 }}>
-                            {effectiveDriver.phoneE164}
-                          </Typography>
+              {effectiveStatus !== 'CANCELLED' ? (
+                <Card sx={{ borderRadius: '24px', boxShadow: '0 8px 24px rgba(30,58,95,0.06)', p: 1 }}>
+                  <CardContent>
+                    <Typography variant="h6" sx={{ fontWeight: 800, color: '#1E3A5F', mb: 3 }}>Driver Details</Typography>
+                    {effectiveDriver ? (
+                      <Box>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
+                          <Avatar src={effectiveDriver.photoUrl} sx={{ width: 64, height: 64, bgcolor: '#f0f4f8', color: '#1E3A5F' }}>
+                            {!effectiveDriver.photoUrl && <PersonIcon sx={{ fontSize: 40 }} />}
+                          </Avatar>
+                          <Box>
+                            <Typography variant="h5" sx={{ fontWeight: 800, color: '#1F2937' }}>{effectiveDriver.name}</Typography>
+                            <Typography variant="subtitle1" sx={{ color: '#1F2937', fontWeight: 900, mt: 0.5, mb: 0.5, display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <Box component="span" sx={{ bgcolor: '#F4B400', color: '#000', px: 1.5, py: 0.5, borderRadius: 1, border: '1px solid #000' }}>
+                                {effectiveDriver.vehicleNumber}
+                              </Box>
+                              {effectiveDriver.ambulanceNumber && (
+                                <Chip label={effectiveDriver.ambulanceNumber} size="small" sx={{ fontWeight: 800, bgcolor: '#1E3A5F', color: '#fff', borderRadius: '8px' }} />
+                              )}
+                            </Typography>
+                            <Typography variant="subtitle2" sx={{ color: '#6b7280', fontWeight: 600 }}>
+                              {effectiveDriver.ambulanceType === 'BLS' ? 'Standard Ambulance' : effectiveDriver.ambulanceType === 'ALS' ? 'Emergency Ambulance' : effectiveDriver.ambulanceType === 'ICU' ? 'Critical Care Ambulance' : effectiveDriver.ambulanceType}
+                            </Typography>
+                            <Typography variant="body2" sx={{ color: '#4b5563', fontWeight: 600, mt: 0.5 }}>
+                              {effectiveDriver.phoneE164}
+                            </Typography>
+                          </Box>
                         </Box>
+                        
+                        {/* Driver Speed & ETA row */}
+                        <Grid container spacing={2} sx={{ mb: 3 }}>
+                          <Grid size={{ xs: 6 }}>
+                            <Box sx={{ p: 1.5, bgcolor: '#f8fafc', borderRadius: 2, border: '1px solid #e2e8f0' }}>
+                              <Typography variant="caption" sx={{ color: '#64748b', display: 'block', mb: 0.5 }}>Current Speed</Typography>
+                              <Typography variant="body1" sx={{ fontWeight: 800, color: '#0f172a' }}>
+                                {liveLocation?.speedKmph ? Math.round(liveLocation.speedKmph) : '--'} km/h
+                              </Typography>
+                            </Box>
+                          </Grid>
+                          <Grid size={{ xs: 6 }}>
+                            <Box sx={{ p: 1.5, bgcolor: '#f8fafc', borderRadius: 2, border: '1px solid #e2e8f0' }}>
+                              <Typography variant="caption" sx={{ color: '#64748b', display: 'block', mb: 0.5 }}>ETA</Typography>
+                              <Typography variant="body1" sx={{ fontWeight: 800, color: '#059669' }}>
+                                {getEtaLabel()}
+                              </Typography>
+                            </Box>
+                          </Grid>
+                        </Grid>
+                        <Button
+                          fullWidth variant="contained" size="large" startIcon={<PhoneIcon />} href={`tel:${effectiveDriver.phoneE164}`}
+                          sx={{ bgcolor: '#76B82A', '&:hover': { bgcolor: '#5b961f' }, borderRadius: '30px', py: 1.5, fontSize: '1.1rem', mb: 2 }}
+                        >
+                          Call Driver
+                        </Button>
+                        <Button 
+                          fullWidth variant="outlined" startIcon={<LocationOnIcon />} 
+                          onClick={() => {
+                            if (mapInstance.current && liveLocation) {
+                              mapInstance.current.setView([liveLocation.lat, liveLocation.lng], 16, { animate: true });
+                            }
+                          }}
+                          sx={{ borderRadius: '30px', py: 1.2, color: '#1E3A5F', borderColor: '#1E3A5F' }}
+                        >
+                          Live Location
+                        </Button>
                       </Box>
-                      
-                      {/* Driver Speed & ETA row */}
-                      <Grid container spacing={2} sx={{ mb: 3 }}>
-                        <Grid size={{ xs: 6 }}>
-                          <Box sx={{ p: 1.5, bgcolor: '#f8fafc', borderRadius: 2, border: '1px solid #e2e8f0' }}>
-                            <Typography variant="caption" sx={{ color: '#64748b', display: 'block', mb: 0.5 }}>Current Speed</Typography>
-                            <Typography variant="body1" sx={{ fontWeight: 800, color: '#0f172a' }}>
-                              {liveLocation?.speedKmph ? Math.round(liveLocation.speedKmph) : '--'} km/h
-                            </Typography>
-                          </Box>
-                        </Grid>
-                        <Grid size={{ xs: 6 }}>
-                          <Box sx={{ p: 1.5, bgcolor: '#f8fafc', borderRadius: 2, border: '1px solid #e2e8f0' }}>
-                            <Typography variant="caption" sx={{ color: '#64748b', display: 'block', mb: 0.5 }}>ETA</Typography>
-                            <Typography variant="body1" sx={{ fontWeight: 800, color: '#059669' }}>
-                              {getEtaLabel()}
-                            </Typography>
-                          </Box>
-                        </Grid>
-                      </Grid>
-                      <Button
-                        fullWidth variant="contained" size="large" startIcon={<PhoneIcon />} href={`tel:${effectiveDriver.phoneE164}`}
-                        sx={{ bgcolor: '#76B82A', '&:hover': { bgcolor: '#5b961f' }, borderRadius: '30px', py: 1.5, fontSize: '1.1rem', mb: 2 }}
-                      >
-                        Call Driver
-                      </Button>
-                      <Button 
-                        fullWidth variant="outlined" startIcon={<LocationOnIcon />} 
-                        onClick={() => {
-                          if (mapInstance.current && liveLocation) {
-                            mapInstance.current.setView([liveLocation.lat, liveLocation.lng], 16, { animate: true });
-                          }
-                        }}
-                        sx={{ borderRadius: '30px', py: 1.2, color: '#1E3A5F', borderColor: '#1E3A5F' }}
-                      >
-                        Live Location
-                      </Button>
-                    </Box>
-                  ) : (
-                    <Box sx={{ textAlign: 'center', py: 4 }}>
-                      <CircularProgress size={40} sx={{ color: '#1E3A5F', mb: 2 }} />
-                      <Typography variant="subtitle1" sx={{ color: '#4b5563', fontWeight: 600 }}>Assigning nearest ambulance...</Typography>
-                    </Box>
-                  )}
-                </CardContent>
-              </Card>
+                    ) : (
+                      <Box sx={{ textAlign: 'center', py: 4 }}>
+                        <CircularProgress size={40} sx={{ color: '#1E3A5F', mb: 2 }} />
+                        <Typography variant="subtitle1" sx={{ color: '#4b5563', fontWeight: 600 }}>Assigning nearest ambulance...</Typography>
+                      </Box>
+                    )}
+                  </CardContent>
+                </Card>
+              ) : (
+                <Card sx={{ borderRadius: '24px', boxShadow: '0 8px 24px rgba(30,58,95,0.06)', p: 1, bgcolor: '#fef2f2', border: '1px solid #fca5a5' }}>
+                  <CardContent sx={{ textAlign: 'center', py: 6 }}>
+                    <Typography variant="h6" sx={{ color: '#b91c1c', fontWeight: 800 }}>Request Cancelled</Typography>
+                    <Typography variant="body2" sx={{ color: '#7f1d1d', mt: 1 }}>Active tracking has been stopped.</Typography>
+                  </CardContent>
+                </Card>
+              )}
 
               {/* Action Buttons */}
               <Card sx={{ borderRadius: '24px', boxShadow: 'none', border: '1px solid #e5e7eb', bgcolor: '#F7F8FA', p: 1 }}>

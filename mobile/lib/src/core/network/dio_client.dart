@@ -54,6 +54,12 @@ class DioClient {
   }
 
   String _extractMessage(DioException error) {
+    if (error.type == DioExceptionType.connectionTimeout ||
+        error.type == DioExceptionType.sendTimeout ||
+        error.type == DioExceptionType.receiveTimeout ||
+        error.type == DioExceptionType.connectionError) {
+      return 'Unable to connect to server. Please check your network and server URL.';
+    }
     final data = error.response?.data;
     if (data is Map<String, dynamic>) {
       final message = data['message'];

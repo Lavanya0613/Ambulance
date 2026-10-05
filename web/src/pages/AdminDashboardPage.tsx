@@ -80,7 +80,7 @@ export default function AdminDashboardPage() {
       // Let's refetch data for now to keep things simple and perfectly accurate
       // Or we can manipulate state manually to avoid db hits.
       // We will avoid DB hits per user requirements: "Do not poll database"
-      
+
       // Update requests list
       setRequests((prev) => {
         let updated = [...prev];
@@ -104,16 +104,16 @@ export default function AdminDashboardPage() {
       // Since metrics aren't easily derived without the full DB state, 
       // we will do our best with local state.
       setMetrics((prev) => {
-         if (!prev) return prev;
-         const newMetrics = { ...prev };
-         if (event === 'request_created') {
-            newMetrics.totalRequests++;
-            newMetrics.pendingRequests++;
-         }
-         // Proper metric transitions without knowing the previous status is impossible via socket 
-         // unless the socket payload includes "oldStatus".
-         // For now, we update requests array correctly. 
-         return newMetrics;
+        if (!prev) return prev;
+        const newMetrics = { ...prev };
+        if (event === 'request_created') {
+          newMetrics.totalRequests++;
+          newMetrics.pendingRequests++;
+        }
+        // Proper metric transitions without knowing the previous status is impossible via socket 
+        // unless the socket payload includes "oldStatus".
+        // For now, we update requests array correctly. 
+        return newMetrics;
       });
     };
 
@@ -135,7 +135,7 @@ export default function AdminDashboardPage() {
       case 'SEARCHING_DRIVER': return 'warning';
       case 'VENDOR_ACCEPTED':
       case 'DRIVER_ASSIGNED': return 'info';
-      case 'EN_ROUTE': 
+      case 'EN_ROUTE':
       case 'ARRIVED':
       case 'PATIENT_ONBOARD': return 'primary';
       case 'DESTINATION_REACHED':
@@ -150,8 +150,8 @@ export default function AdminDashboardPage() {
     let result = requests || [];
     if (searchQuery) {
       const lower = searchQuery.toLowerCase();
-      result = result.filter(r => 
-        r.requestNumber?.toLowerCase().includes(lower) || 
+      result = result.filter(r =>
+        r.requestNumber?.toLowerCase().includes(lower) ||
         r.patientName?.toLowerCase().includes(lower)
       );
     }

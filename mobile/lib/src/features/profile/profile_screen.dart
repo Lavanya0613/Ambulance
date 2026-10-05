@@ -9,10 +9,11 @@ class ProfileScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Consumer<AuthProvider>(builder: (context, auth, _) {
-      return SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(16, 24, 16, 100),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+      return SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(16, 24, 16, 100),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text('Profile', style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900, color: AppColors.darkBlue)),
             const SizedBox(height: 4),
@@ -84,9 +85,24 @@ class ProfileScreen extends StatelessWidget {
 
             // No logout needed — app integrates into existing platform
             // Patient identity is managed by the host application
+
+            const SizedBox(height: 32),
+            SizedBox(
+              width: double.infinity,
+              height: 52,
+              child: ElevatedButton.icon(
+                onPressed: () => Navigator.pushNamed(context, '/vendor/login'),
+                icon: const Icon(Icons.business_center),
+                label: const Text('Switch to Vendor Portal', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.darkBlue,
+                  foregroundColor: Colors.white,
+                ),
+              ),
+            ),
           ],
         ),
-      );
+      ));
     });
   }
 

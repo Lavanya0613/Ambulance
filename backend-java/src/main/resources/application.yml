@@ -1,0 +1,77 @@
+server:
+  port: ${SERVER_PORT:${PORT:8081}}
+  shutdown: graceful
+
+spring:
+  application:
+    name: ambulance-backend-java
+  
+  # PostgreSQL Datasource Configuration
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:127.0.0.1}:${DB_PORT:5433}/${DB_NAME:ambulance}
+    username: ${DB_USER:postgres}
+    password: ${DB_PASS:letsgo}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      idle-timeout: 300000
+      connection-timeout: 20000
+      max-lifetime: 1200000
+  
+  # JPA / Hibernate Configuration
+  jpa:
+    hibernate:
+      ddl-auto: validate
+      naming:
+        physical-strategy: org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl
+        implicit-strategy: org.hibernate.boot.model.naming.ImplicitNamingStrategyJpaCompliantImpl
+    show-sql: false
+    open-in-view: false
+    properties:
+      hibernate:
+        globally_quoted_identifiers: true
+        format_sql: true
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+  # Redis Configuration
+  data:
+    redis:
+      host: ${REDIS_HOST:127.0.0.1}
+      port: ${REDIS_PORT:6379}
+      timeout: 2000ms
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
+          max-wait: -1ms
+
+# Actuator Health Endpoints
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,env
+  endpoint:
+    health:
+      show-details: always
+      probes:
+        enabled: true
+
+# Logging Configuration
+logging:
+  level:
+    root: INFO
+    com.callhealth.ambulance: DEBUG
+    org.springframework.web: INFO
+    org.hibernate.SQL: INFO
+
+# Mock Live Tracking Demo Configuration
+mock:
+  tracking:
+    enabled: true
+    interval-ms: 1500
+    step-distance-meters: 80.0
+    arrival-threshold-meters: 40.0
+

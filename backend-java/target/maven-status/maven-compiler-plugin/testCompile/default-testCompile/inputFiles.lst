@@ -1,0 +1,8 @@
+C:\Users\lavanya\Desktop\Ambulance\backend-java\src\test\java\com\callhealth\ambulance\controller\PatientRequestControllerTest.java
+C:\Users\lavanya\Desktop\Ambulance\backend-java\src\test\java\com\callhealth\ambulance\gateway\WebSocketIntegrationTest.java
+C:\Users\lavanya\Desktop\Ambulance\backend-java\src\test\java\com\callhealth\ambulance\queue\QueueIntegrationTest.java
+C:\Users\lavanya\Desktop\Ambulance\backend-java\src\test\java\com\callhealth\ambulance\seed\DemoSeedIntegrationTest.java
+C:\Users\lavanya\Desktop\Ambulance\backend-java\src\test\java\com\callhealth\ambulance\service\AmbulanceBookingIntegrationTest.java
+C:\Users\lavanya\Desktop\Ambulance\backend-java\src\test\java\com\callhealth\ambulance\service\OrderHistoryIntegrationTest.java
+C:\Users\lavanya\Desktop\Ambulance\backend-java\src\test\java\com\callhealth\ambulance\service\PaymentIntegrationTest.java
+C:\Users\lavanya\Desktop\Ambulance\backend-java\src\test\java\com\callhealth\ambulance\service\TrackingIntegrationTest.java
